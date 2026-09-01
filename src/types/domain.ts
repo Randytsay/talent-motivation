@@ -56,6 +56,7 @@ export type ExplorationInterest = '很想' | '可以了解看看' | '目前還�
 
 export type AssessmentStep =
   | 'landing'
+  | 'consent'
   | 'birthday'
   | 'life-path'
   | 'resonance'

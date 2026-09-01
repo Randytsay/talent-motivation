@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
@@ -54,6 +55,10 @@ function createEmptyDraft(): AssessmentDraft {
   };
 }
 
+function energyLabel(code?: RiasecCode): string {
+  return code ? ENERGY_OPTIONS.find((item) => item.code === code)?.label ?? '—' : '—';
+}
+
 function App() {
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
@@ -65,10 +70,6 @@ function App() {
   const lifePathContent = draft.lifePath ? LIFE_PATH_CONTENT[draft.lifePath.value] : null;
 
   useEffect(() => {
-    if (draft.step === 'report') {
-      localAssessmentDraftRepository.clear();
-      return;
-    }
     localAssessmentDraftRepository.save(draft);
   }, [draft]);
 
@@ -78,7 +79,13 @@ function App() {
 
   function startNew() {
     setDateError(null);
-    setDraft({ ...createEmptyDraft(), step: 'birthday' });
+    setDraft({ ...createEmptyDraft(), step: 'consent' });
+  }
+
+  function returnHome() {
+    localAssessmentDraftRepository.clear();
+    setDateError(null);
+    setDraft(createEmptyDraft());
   }
 
   function revealLifePath() {
@@ -109,17 +116,46 @@ function App() {
     });
   }
 
-  function restart() {
-    localAssessmentDraftRepository.clear();
-    setDateError(null);
-    setDraft(createEmptyDraft());
-  }
+  const subjectiveComparison = useMemo(() => {
+    if (!riasecResult || !draft.subjectiveDriver) return null;
+    const top1 = riasecResult.top3[0];
+    const subjective = draft.subjectiveDriver;
+    if (subjective === top1) {
+      return {
+        title: '兩個角度出現相同線索',
+        text: `你直覺選擇「${energyLabel(subjective)}」，RIASEC 最高向度也是 ${RIASEC_META[top1].name}。這是一個值得繼續觀察的一致線索。`,
+      };
+    }
+    return {
+      title: '兩個角度照到不同線索',
+      text: `你直覺選擇「${energyLabel(subjective)}」，RIASEC 最高向度則是 ${RIASEC_META[top1].name}。這不代表哪一個錯了，而是提醒你留意：什麼事情吸引你，和什麼事情讓你有精神，可能不完全相同。`,
+    };
+  }, [draft.subjectiveDriver, riasecResult]);
 
   return (
     <main className="site-shell">
-      {draft.step !== 'landing' && draft.step !== 'report' ? <ProgressHeader step={draft.step} /> : null}
+      {draft.step !== 'landing' && draft.step !== 'report' ? (
+        <ProgressHeader step={draft.step} onHome={returnHome} />
+      ) : null}
       <section className="journey" aria-live="polite">
         {draft.step === 'landing' ? <Landing onStart={startNew} /> : null}
+
+        {draft.step === 'consent' ? (
+          <section className="panel panel--narrow entrance">
+            <p className="eyebrow">開始前 · 本機預演說明</p>
+            <h1>先說明這次資料怎麼使用</h1>
+            <p className="lede">
+              目前是 P0 本機預演版，尚未連接 LINE、Lark Base 或雲端資料庫。你的出生日期、作答與結果只會暫存在這個瀏覽器，方便刷新後繼續。
+            </p>
+            <div className="reflection-card" style={{ marginTop: 28 }}>
+              <small>目前不會做的事</small>
+              <p>不會建立 LINE 身分、不會上傳雲端，也不會把結果公開給其他人。正式版上線前會另外提供完整隱私告知與同意流程。</p>
+            </div>
+            <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'birthday' })}>
+              我了解，繼續本機探索
+            </button>
+          </section>
+        ) : null}
 
         {draft.step === 'birthday' ? (
           <section className="panel panel--narrow entrance">
@@ -259,7 +295,7 @@ function App() {
                 <p className="top-code">{riasecResult.top3Code}</p>
                 <div className="top-cards">
                   {riasecResult.top3.map((code) => (
-                    <div className="top-card" key={code} style={{ '--accent': RIASEC_META[code].color } as React.CSSProperties}>
+                    <div className="top-card" key={code} style={{ '--accent': RIASEC_META[code].color } as CSSProperties}>
                       <span>{code}</span>
                       <p>{RIASEC_META[code].name}</p>
                       <small>{RIASEC_META[code].verb} · {riasecResult.scores[code].normalized}</small>
@@ -276,6 +312,12 @@ function App() {
                 </dl>
               </div>
             </div>
+            {subjectiveComparison ? (
+              <div className="reflection-card">
+                <small>{subjectiveComparison.title}</small>
+                <p>{subjectiveComparison.text}</p>
+              </div>
+            ) : null}
             <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'talent-usage' })}>看看第三面鏡子</button>
           </section>
         ) : null}
@@ -335,14 +377,18 @@ function App() {
             <h1>把三面鏡子放在一起看</h1>
             <p className="lede">這裡呈現的是你提供的回答與計算結果；它們可以成為你接下來觀察自己的線索。</p>
             <div className="report-grid">
-              <article><small>自我反思入口</small><strong>{draft.lifePath?.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
-              <article><small>活動偏好 Top 3</small><strong>{riasecResult.top3Code}</strong><p>{riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
-              <article><small>做了反而有精神</small><strong>{draft.subjectiveDriver ? ENERGY_OPTIONS.find((item) => item.code === draft.subjectiveDriver)?.label : '—'}</strong><p>這是你親自選擇的能量線索。</p></article>
+              <article><small>第一面鏡子 · 自我反思</small><strong>{draft.lifePath?.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
+              <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{riasecResult.top3Code}</strong><p>{riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
+              <article><small>本人能量線索</small><strong>{energyLabel(draft.subjectiveDriver)}</strong><p>{subjectiveComparison?.title ?? '這是你親自選擇的能量線索。'}</p></article>
+              <article><small>第三面鏡子 · 天賦使用感</small><strong>{draft.talentUsage ?? '—'}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
               <article><small>目前最關注</small><strong>{draft.priorities.join('、')}</strong><p>探索意願：{draft.explorationInterest}</p></article>
             </div>
+            {subjectiveComparison ? (
+              <div className="reflection-card"><small>{subjectiveComparison.title}</small><p>{subjectiveComparison.text}</p></div>
+            ) : null}
             <div className="reflection-card"><small>留給自己的問題</small><p>{lifePathContent.reflectionQuestion}</p></div>
-            <p className="local-note">這是 P0 本地預演：結果沒有寫入帳號或資料庫。重新開始後可再完成一輪探索。</p>
-            <button className="secondary-button" type="button" onClick={restart}>重新開始一輪</button>
+            <p className="local-note">這是 P0 本地預演：結果只暫存在這個瀏覽器，刷新仍可查看；按「重新開始一輪」後會清除本機紀錄。</p>
+            <button className="secondary-button" type="button" onClick={returnHome}>重新開始一輪</button>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
         ) : null}
@@ -357,9 +403,9 @@ function Landing({ onStart }: { onStart: () => void }) {
       <div className="landing-copy">
         <p className="eyebrow">三面鏡子，不替你下定義</p>
         <h1>看見天賦，<br /><em>找到原動力。</em></h1>
-        <p className="landing-lede">從一個自我反思入口、一組活動偏好，和你此刻的感受開始，為自己多留一個方向。</p>
-        <button className="primary-button" type="button" onClick={onStart}>開始探索</button>
-        <p className="landing-footnote">約 8–10 分鐘 · 沒有標準答案</p>
+        <p className="landing-lede">看見天賦・找到原動力・增加人生的選擇。從一個自我反思入口、一組活動偏好，和你此刻的感受開始。</p>
+        <button className="primary-button" type="button" onClick={onStart}>開始探索我的天賦</button>
+        <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
       </div>
       <div className="mirror-composition" aria-hidden="true">
         <span className="mirror mirror--one"><b>1</b><small>自我</small></span>

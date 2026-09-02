@@ -1,6 +1,7 @@
 import { HttpError } from './http';
 
 type Environment = Record<string, string | undefined>;
+type RuntimeMode = 'mock' | 'preview' | 'live';
 
 export interface RuntimeConfig {
   deployment: 'production' | 'preview' | 'development';
@@ -50,6 +51,11 @@ function readGroup<T extends Record<string, string>>(environment: Environment, m
 /**
  * This module is imported only by Vercel Functions. It intentionally never
  * reads `VITE_*` secrets or passes a configuration object to browser code.
+ *
+ * APP_RUNTIME_MODE values:
+ * - mock: mock identity + process-local memory + mock AI (local/CI only)
+ * - preview: mock identity + Lark persistence + mock AI (Vercel Preview QA)
+ * - live: LINE identity + Lark persistence + real Gemini AI
  */
 export function loadRuntimeConfig(environment: Environment = process.env): RuntimeConfig {
   const deployment = environment.VERCEL_ENV === 'production'
@@ -58,12 +64,12 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
       ? 'preview'
       : 'development';
   const isProduction = deployment === 'production';
-  const runtimeMode = environment.APP_RUNTIME_MODE;
-  if (runtimeMode !== undefined && runtimeMode !== 'mock' && runtimeMode !== 'live') {
-    throw new EnvironmentError('APP_RUNTIME_MODE must be either mock or live.');
+  const runtimeMode = environment.APP_RUNTIME_MODE as RuntimeMode | undefined;
+  if (runtimeMode !== undefined && runtimeMode !== 'mock' && runtimeMode !== 'preview' && runtimeMode !== 'live') {
+    throw new EnvironmentError('APP_RUNTIME_MODE must be mock, preview, or live.');
   }
-  if (isProduction && runtimeMode === 'mock') {
-    throw new EnvironmentError('Production deployment cannot use mock runtime mode.');
+  if (isProduction && runtimeMode && runtimeMode !== 'live') {
+    throw new EnvironmentError('Production deployment can only use live runtime mode.');
   }
   const sessionSecret = environment.SESSION_SECRET;
   if (isProduction && !sessionSecret) {
@@ -97,30 +103,43 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
   }
 
   const defaultDevelopmentMock = deployment === 'development' && !line && !lark && !ai;
-  const isMockMode = runtimeMode === 'mock' || defaultDevelopmentMock;
-  if (deployment === 'preview' && !isMockMode && (!line || !lark || !ai || !sessionSecret)) {
-    throw new EnvironmentError('Preview requires APP_RUNTIME_MODE=mock or complete live runtime configuration.');
+  const isMemoryMock = runtimeMode === 'mock' || defaultDevelopmentMock;
+  const isPersistentPreview = runtimeMode === 'preview';
+  const isMockMode = isMemoryMock;
+
+  if (isPersistentPreview && deployment === 'production') {
+    throw new EnvironmentError('Persistent preview mode cannot run in production.');
+  }
+  if (isPersistentPreview && !lark) {
+    throw new EnvironmentError('APP_RUNTIME_MODE=preview requires complete Lark configuration for shared persistence.');
+  }
+  if (deployment === 'preview' && !isMemoryMock && !isPersistentPreview && (!line || !lark || !ai || !sessionSecret)) {
+    throw new EnvironmentError('Preview requires APP_RUNTIME_MODE=mock, APP_RUNTIME_MODE=preview with Lark, or complete live runtime configuration.');
   }
   if (isProduction && (!line || !lark || !ai || !sessionSecret || !environment.APP_BASE_URL)) {
     throw new EnvironmentError('Production requires complete LINE, Lark, Gemini, session, and APP_BASE_URL configuration.');
   }
-  if (!isMockMode && !sessionSecret) {
+  if (!isMemoryMock && !isPersistentPreview && !sessionSecret) {
     throw new EnvironmentError('SESSION_SECRET is required for live runtime mode.');
   }
+
+  const identityMode: RuntimeConfig['identityMode'] = isMemoryMock || isPersistentPreview ? 'mock' : 'line';
+  const persistenceMode: RuntimeConfig['persistenceMode'] = isPersistentPreview || !isMemoryMock ? 'lark' : 'memory';
+  const aiMode: RuntimeConfig['aiMode'] = isMemoryMock || isPersistentPreview ? 'mock' : 'real';
 
   return {
     deployment,
     isProduction,
     isMockMode,
     appBaseUrl: environment.APP_BASE_URL ?? 'http://localhost:5173',
-    // The local fallback can only create mock sessions. Production is always fail-closed.
+    // This fallback can only create mock sessions. Production remains fail-closed.
     sessionSecret: sessionSecret ?? 'local-mock-session-not-for-production',
-    identityMode: isMockMode ? 'mock' : 'line',
-    persistenceMode: isMockMode ? 'memory' : 'lark',
-    aiMode: isMockMode ? 'mock' : 'real',
-    line: isMockMode ? undefined : line,
-    lark: isMockMode ? undefined : lark,
-    ai: isMockMode ? undefined : ai,
+    identityMode,
+    persistenceMode,
+    aiMode,
+    line: identityMode === 'line' ? line : undefined,
+    lark: persistenceMode === 'lark' ? lark : undefined,
+    ai: aiMode === 'real' ? ai : undefined,
   };
 }
 

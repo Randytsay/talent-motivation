@@ -98,7 +98,7 @@ export class InMemoryRepositories implements Repositories {
       findById: async (assessmentId) => this.assessmentsById.get(assessmentId) ?? null,
       findLatestForParticipant: async (participantId) => {
         const history = this.assessmentIdsByParticipant.get(participantId) ?? [];
-        const latestId = history.at(-1);
+        const latestId = history[history.length - 1];
         return latestId ? this.assessmentsById.get(latestId) ?? null : null;
       },
     };

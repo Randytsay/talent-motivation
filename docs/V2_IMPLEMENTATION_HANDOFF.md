@@ -5,8 +5,11 @@ PR: #10
 
 Read first:
 - `docs/METHODOLOGY_V2.md`
+- `docs/BIRTH_PROFILE_V2.md`
 - `src/lib/scoring/birthProfile.ts`
 - `src/lib/scoring/birthProfile.test.ts`
+- `src/lib/scoring/birthSignature.ts`
+- `src/lib/scoring/birthSignature.test.ts`
 - `src/lib/scoring/riasecSignals.ts`
 
 ## Non-negotiable product rules
@@ -15,9 +18,10 @@ Read first:
 2. Birth Profile is a self-reflection framework, not a diagnostic/predictive system.
 3. Program calculates all numerology and RIASEC facts. LLM only interprets validated facts.
 4. Full birth date, LINE userId, profile URL, raw q01–q18 answer map and reflection raw text must never enter Presenter payload.
-5. LLM may receive short reflection text, age band, calculated Birth Profile facts and derived RIASEC item signals.
+5. LLM may receive short reflection text, age band, calculated Birth Profile facts, legacy Birth Signature derived facts and derived RIASEC item signals.
 6. Existing Preview/Production Lark data must remain readable. Prefer additive migration; never rename/drop existing fields in this PR.
 7. Existing LINE identity, event-scoped Presenter consent, server restore and multi-provider AI runtime must continue to work.
+8. Birth Signature is secondary evidence. It must never outweigh participant reflection or RIASEC by itself.
 
 ## Participant flow target
 
@@ -31,8 +35,9 @@ The Birth Profile screen should reveal information progressively:
 - Compact card: 金字塔核心數 O
 - Two compact cards: 外顯綜合 M vs 內在綜合 N
 - Current adult-stage card: only U/R/X relevant to current age
-- Do not show A–X raw graph in the main event flow.
-- Optional future detailed view can show the full pyramid, but not required in V2 event flow.
+- Birth Signature patterns stay hidden from the main event UI unless surfaced as a concise convergence note
+- Do not show A–X raw graph in the main event flow
+- Optional future detailed view can show the full pyramid, but not required in V2 event flow
 
 ## Reflection UI
 
@@ -62,17 +67,19 @@ interface ReflectionAnswers {
 AssessmentInput:
 - keep `birthDate`
 - optional `birthProfile` client echo; backend recalculates and rejects mismatch
+- optional `birthSignature` client echo; backend recalculates and rejects mismatch if accepted from client
 - add `reflections`
 
 AssessmentRecord:
 - keep private `birthDate`
 - add canonical `birthProfile`
+- add canonical `birthSignature`
 - keep raw RIASEC answers at rest
 - add `reflections`
 
 Client assessment restore:
 - still strip `birthDate` and raw `riasecAnswers`
-- Birth Profile is safe to return to the same authenticated participant
+- Birth Profile / Birth Signature are safe to return to the same authenticated participant
 - reflections may return to the same participant, but never Presenter
 
 ## Lark additive schema V2
@@ -84,6 +91,7 @@ All new fields are additive. Existing fields remain unchanged.
 | field | type | source |
 |---|---|---|
 | birth_profile_json | Long text | canonical calculated BirthProfileResult JSON |
+| birth_signature_json | Long text | canonical calculated BirthSignatureResult JSON |
 | birth_pyramid_main | Number | O |
 | birth_outer_composite | Number | M |
 | birth_inner_composite | Number | N |
@@ -127,6 +135,7 @@ All providers — Vertex, MiniMax, Gemini Developer API, Mock — must emit the 
 Send only:
 
 - `birthProfileFacts(canonicalBirthProfile)`
+- `birthSignatureFacts(canonicalBirthSignature)`
 - life-path resonance + selected resonance statement
 - RIASEC six scores + Top3
 - `extractRiasecItemSignals(rawAnswers)` output (high/low only)
@@ -142,15 +151,27 @@ Explicitly do not send:
 - q01–q18 answer map
 - pictureUrl
 
+## Interpretation weighting
+
+Use this evidence priority:
+
+1. participant reflection / self validation
+2. RIASEC result + item signals
+3. pyramid primary structure
+4. legacy Birth Signature secondary patterns
+
+A Birth Signature-only pattern must be described as a weak symbolic clue, not a conclusion.
+
 ## AI interpretation policy
 
 Prompt must ask for cross-source interpretation:
 
-- identify repeated signals across Birth Profile / RIASEC / self-report / current reality
+- identify repeated signals across Birth Profile / Birth Signature / RIASEC / self-report / current reality
 - surface inner-vs-outer or interest-vs-energy tensions as hypotheses
 - use Talent Usage for `unused_potential`
-- treat Birth Profile as symbolic language and RIASEC as interest preference
+- treat Birth Profile and Birth Signature as symbolic language and RIASEC as interest preference
 - reflection text is participant-owned evidence and should be weighted strongly
+- low-presence/missing birth numbers are not deficiencies
 
 Allowed language:
 - 可能
@@ -166,6 +187,7 @@ Prohibited/deterministic language includes existing guardrails plus:
 - 你天生就是
 - 你一定要
 - 命定職業
+- 天生不足
 
 ## Final report UX
 
@@ -193,32 +215,35 @@ Still exclude:
 - priorities
 - exploration interest
 - raw answers
+- raw Birth Signature grid/counts
 
 ## Consent copy update
 
 Replace the V1 statement that AI only receives Life Path/RIASEC summaries. State accurately:
 
-- birth date is used by the program to calculate the Birth Profile and age band
-- AI receives calculated Birth Profile facts, RIASEC derived signals and the participant's reflection answers
+- birth date is used by the program to calculate the Birth Profile, derived Birth Signature and age band
+- AI receives calculated symbolic Birth Profile/Signature facts, RIASEC derived signals and the participant's reflection answers
 - AI does not receive full birth date, LINE user ID or the q01–q18 raw answer map
 
 ## Migration/compatibility
 
-Old V1 Assessments may not have `birth_profile_json` or reflections.
+Old V1 Assessments may not have V2 birth JSON fields or reflections.
 
 Read path must tolerate missing V2 fields:
-- if birth profile missing but private birthDate is available, backend may calculate on read; otherwise return V1-compatible result
+- if Birth Profile/Signature missing but private birthDate is available, backend may calculate on read
+- otherwise return a V1-compatible result
 - AI report V1 records without new fields remain readable; UI should fall back gracefully
 - do not rewrite historical records in this PR
 
 ## QA gates
 
 Unit:
-- legacy Inner Number fixtures
+- legacy Inner Number pyramid fixtures
+- legacy grid/signature fixture
 - master number separate from pyramid main
 - invalid calendar date
 - age bands/stage boundaries
-- client-forged birth profile rejected
+- client-forged birth profile/signature rejected
 - LLM fact serialization contains no full DOB or q01 key names
 - AI V2 schema/guardrails all providers
 - Lark V1 record read compatibility

@@ -3,7 +3,31 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/subjects/:subjectId/assessments",
+      "destination": "/api/v2?route=subjects/:subjectId/assessments"
+    },
+    {
+      "source": "/api/subjects",
+      "destination": "/api/v2?route=subjects"
+    },
+    {
+      "source": "/api/claims/preview",
+      "destination": "/api/v2?route=claims/preview"
+    },
+    {
+      "source": "/api/claims/redeem",
+      "destination": "/api/v2?route=claims/redeem"
+    },
+    {
+      "source": "/api/claims",
+      "destination": "/api/v2?route=claims"
+    },
+    {
+      "source": "/api/share/:assessmentId",
+      "destination": "/api/v2?route=share/:assessmentId"
+    },
+    {
+      "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
   ]

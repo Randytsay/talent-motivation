@@ -4,15 +4,13 @@ import { createRouteHandlers } from '../src/server/routes';
 const routes = createRouteHandlers();
 
 /**
- * Keep the V2 endpoints behind one catch-all function. Vercel Hobby permits
- * twelve Functions per deployment; the route handlers themselves remain
- * separate and are selected only by the request path here.
+ * The V2 endpoints share one Vercel Function to stay within the Hobby plan's
+ * twelve-function deployment limit. vercel.json rewrites preserve each public
+ * endpoint while passing its route shape through the `route` query parameter.
  */
 export default vercelWebHandler((request) => {
-  const segments = new URL(request.url).pathname
-    .replace(/^\/api\/?/, '')
-    .split('/')
-    .filter(Boolean);
+  const route = new URL(request.url).searchParams.get('route') ?? '';
+  const segments = route.split('/').filter(Boolean);
 
   if (segments[0] === 'subjects') {
     if (segments.length === 1) {

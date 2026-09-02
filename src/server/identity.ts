@@ -91,6 +91,10 @@ export function createOAuthState(config: RuntimeConfig): { state: string; cookie
   return { state, cookie: serializeCookie(OAUTH_STATE_COOKIE, state, config, STATE_MAX_AGE_SECONDS) };
 }
 
+export function clearOAuthStateCookie(config: RuntimeConfig): string {
+  return serializeCookie(OAUTH_STATE_COOKIE, '', config, 0);
+}
+
 export function verifyOAuthState(request: Request, state: string | null, config: RuntimeConfig): void {
   const storedState = cookieValue(request, OAUTH_STATE_COOKIE);
   const isValid = state && storedState && safeEqual(state, storedState) && verifySigned(state, config.sessionSecret);
@@ -127,6 +131,7 @@ export class LineLoginIdentityProvider implements IdentityProvider {
     url.searchParams.set('redirect_uri', new URL('/api/auth/line/callback', this.appBaseUrl).toString());
     url.searchParams.set('state', state);
     url.searchParams.set('scope', 'profile openid');
+    url.searchParams.set('bot_prompt', 'normal');
     return url;
   }
 

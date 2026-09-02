@@ -70,6 +70,7 @@ function App() {
 
 function AssessmentApp() {
   const auth = useAuthBootstrap();
+  const eventId = new URLSearchParams(window.location.search).get('eventId');
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
   const [completedAssessment, setCompletedAssessment] = useState<ClientAssessment | null>(null);
@@ -186,6 +187,7 @@ function AssessmentApp() {
         talentUsage: draft.talentUsage,
         priorities: draft.priorities,
         explorationInterest: draft.explorationInterest,
+        ...(eventId ? { eventId, presenterConsent: draft.presenterConsent === true } : {}),
       } satisfies AssessmentInput);
       setCompletedAssessment(assessment);
       localAssessmentDraftRepository.clear();
@@ -233,17 +235,22 @@ function AssessmentApp() {
 
         {draft.step === 'consent' ? (
           <section className="panel panel--narrow entrance">
-            <p className="eyebrow">開始前 · 本機預演說明</p>
-            <h1>先說明這次資料怎麼使用</h1>
+            <p className="eyebrow">開始前 · 資料使用說明</p>
+            <h1>開始前，先說明資料怎麼使用</h1>
             <p className="lede">
-              目前是 P0 本機預演版，尚未連接 LINE、Lark Base 或雲端資料庫。你的出生日期、作答與結果只會暫存在這個瀏覽器，方便刷新後繼續。
+              未完成的作答草稿只保存在目前瀏覽器，方便你中途刷新後繼續。使用 LINE 登入後，完成的探索結果會保存到系統，以便之後再次查看。
             </p>
             <div className="reflection-card" style={{ marginTop: 28 }}>
-              <small>目前不會做的事</small>
-              <p>不會建立 LINE 身分、不會上傳雲端，也不會把結果公開給其他人。正式版上線前會另外提供完整隱私告知與同意流程。</p>
+              <small>資料使用與分享範圍</small>
+              <ul className="privacy-list">
+                <li>出生日期只用來計算 Life Path 與保存本次探索紀錄。</li>
+                <li>AI 綜合解析只接收已計算完成的 Life Path、RIASEC、主觀回饋與選擇；不傳送完整出生日期與 18 題原始答案。</li>
+                <li>測驗結果不會自動公開。Presenter 分享必須另外取得本次活動的明確同意。</li>
+                <li>Presenter 不顯示完整出生日期、探索意願或其他未授權私人資料。</li>
+              </ul>
             </div>
             <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'birthday' })}>
-              我了解，繼續本機探索
+              我了解，開始探索
             </button>
           </section>
         ) : null}
@@ -451,6 +458,29 @@ function AssessmentApp() {
                 ))}
               </div>
             </div>
+            {eventId ? (
+              <fieldset className="presenter-consent">
+                <legend>是否願意讓講師在本次活動中，將以下探索摘要顯示在 Presenter 畫面？</legend>
+                <p>只會顯示：</p>
+                <ul>
+                  <li>LINE 顯示名稱</li>
+                  <li>Life Path</li>
+                  <li>RIASEC 六向度與 Top3</li>
+                  <li>主觀能量線索</li>
+                  <li>天賦使用感</li>
+                  <li>經允許的 AI 重複線索</li>
+                </ul>
+                <p>不會顯示完整出生日期、原始 18 題答案、探索意願或其他私人資料。</p>
+                <label className="presenter-consent__choice">
+                  <input
+                    type="checkbox"
+                    checked={draft.presenterConsent === true}
+                    onChange={(event) => patchDraft({ presenterConsent: event.target.checked })}
+                  />
+                  <span>我同意本次活動顯示上述摘要</span>
+                </label>
+              </fieldset>
+            ) : null}
             <button
               className="primary-button"
               disabled={draft.priorities.length === 0 || !draft.explorationInterest}
@@ -479,7 +509,7 @@ function AssessmentApp() {
               <div className="reflection-card"><small>{subjectiveComparison.title}</small><p>{subjectiveComparison.text}</p></div>
             ) : null}
             <div className="reflection-card"><small>留給自己的問題</small><p>{lifePathContent.reflectionQuestion}</p></div>
-            <p className="local-note">這是 P0 本地預演：結果只暫存在這個瀏覽器，刷新仍可查看；按「重新開始一輪」後會清除本機紀錄。</p>
+            <p className="local-note">目前結果暫存在這個瀏覽器，方便刷新後繼續查看；按「重新開始一輪」後會清除未完成的本機紀錄。</p>
             <button className="secondary-button" type="button" onClick={returnHome}>重新開始一輪</button>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>

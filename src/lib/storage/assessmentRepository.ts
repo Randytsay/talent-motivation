@@ -135,6 +135,7 @@ function isDraft(value: unknown): value is AssessmentDraft {
 
   if (candidate.explorationInterest !== undefined && !VALID_EXPLORATION.has(candidate.explorationInterest)) return false;
   if (step === 'report' && (candidate.priorities.length === 0 || !candidate.explorationInterest)) return false;
+  if (candidate.presenterConsent !== undefined && typeof candidate.presenterConsent !== 'boolean') return false;
 
   return true;
 }

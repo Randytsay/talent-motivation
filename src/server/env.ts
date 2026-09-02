@@ -68,8 +68,11 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
   if (runtimeMode !== undefined && runtimeMode !== 'mock' && runtimeMode !== 'preview' && runtimeMode !== 'live') {
     throw new EnvironmentError('APP_RUNTIME_MODE must be mock, preview, or live.');
   }
-  if (isProduction && runtimeMode && runtimeMode !== 'live') {
-    throw new EnvironmentError('Production deployment can only use live runtime mode.');
+  if (isProduction && runtimeMode === 'mock') {
+    throw new EnvironmentError('Production deployment cannot use mock runtime mode.');
+  }
+  if (isProduction && runtimeMode === 'preview') {
+    throw new EnvironmentError('Production deployment cannot use preview runtime mode.');
   }
   const sessionSecret = environment.SESSION_SECRET;
   if (isProduction && !sessionSecret) {
@@ -107,9 +110,6 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
   const isPersistentPreview = runtimeMode === 'preview';
   const isMockMode = isMemoryMock;
 
-  if (isPersistentPreview && deployment === 'production') {
-    throw new EnvironmentError('Persistent preview mode cannot run in production.');
-  }
   if (isPersistentPreview && !lark) {
     throw new EnvironmentError('APP_RUNTIME_MODE=preview requires complete Lark configuration for shared persistence.');
   }

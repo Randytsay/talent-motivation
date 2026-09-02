@@ -72,7 +72,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
     throw new EnvironmentError('Production deployment cannot use mock runtime mode.');
   }
   if (isProduction && runtimeMode === 'preview') {
-    throw new EnvironmentError('Production deployment cannot use preview runtime mode.');
+    throw new EnvironmentError('Production deployment can only use live runtime mode.');
   }
   const sessionSecret = environment.SESSION_SECRET;
   if (isProduction && !sessionSecret) {

@@ -10,7 +10,7 @@ import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePa
 import { calculateBirthProfile } from './lib/scoring/birthProfile';
 import { calculateBirthSignature } from './lib/scoring/birthSignature';
 import { scoreRiasec } from './lib/scoring/riasec';
-import { ApiError, createAssessment, createClaim, createSubject, generateReport, getClaimPreview, getLatestAssessment, getReport, redeemClaim, type ClientAssessment } from './lib/api/client';
+import { ApiError, createAssessment, createClaim, createSubject, generateReport, getClaimPreview, getLatestAssessment, getPublicShare, getReport, redeemClaim, type ClientAssessment } from './lib/api/client';
 import { useAuthBootstrap, type AuthState } from './lib/api/authBootstrap';
 import { localAssessmentDraftRepository } from './lib/storage/assessmentRepository';
 import type {
@@ -70,6 +70,7 @@ function energyLabel(code?: RiasecCode): string {
 function App() {
   if (window.location.pathname === '/presenter') return <PresenterPage />;
   if (window.location.pathname === '/claim') return <ClaimPage />;
+  if (window.location.pathname.startsWith('/share/')) return <PublicSharePage />;
   return <AssessmentApp />;
 }
 
@@ -98,6 +99,31 @@ function ClaimPage() {
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     {!done && preview ? <button className="primary-button" type="button" disabled={auth.status === 'loading'} onClick={() => { if (auth.status === 'authenticated' || auth.status === 'mock') void redeem(); else window.location.assign(`/api/auth/line/start?claimToken=${encodeURIComponent(token)}`); }}>{auth.status === 'authenticated' || auth.status === 'mock' ? '用 LINE 保存我的結果' : '請先使用 LINE 登入'}</button> : null}
     {!done && !preview ? <button className="secondary-button" type="button" onClick={() => { window.location.assign('/'); }}>回到首頁</button> : null}
+  </section></main>;
+}
+
+function PublicSharePage() {
+  const assessmentId = decodeURIComponent(window.location.pathname.slice('/share/'.length));
+  const [share, setShare] = useState<Awaited<ReturnType<typeof getPublicShare>>['share'] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!assessmentId) return;
+    void getPublicShare(assessmentId).then((response) => setShare(response.share)).catch(() => setError('目前無法讀取這份精華摘要。'));
+  }, [assessmentId]);
+  return <main className="site-shell"><section className="panel panel--narrow entrance public-share-panel">
+    <p className="eyebrow">公開精華摘要</p>
+    <h1>一份可以安心分享的探索線索</h1>
+    <p className="lede">這張卡片只保留適合公開的摘要，不包含出生日期、原始答案或認領連結。</p>
+    {error ? <p className="field-error" role="alert">{error}</p> : null}
+    {share ? <>
+      <div className="public-share-grid">
+        <article><small>Life Path</small><strong>{share.lifePath}</strong></article>
+        <article><small>RIASEC Top 3</small><strong>{share.top3Code}</strong><p>{share.top3.join('、')}</p></article>
+      </div>
+      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.join(' ') || '這份摘要目前沒有額外的重複線索。'}</p></div>
+      <p className="local-note">{share.summary}</p>
+      <a className="secondary-button public-share-home" href={share.landingUrl}>回到天賦原動力</a>
+    </> : !error ? <p className="local-note">正在準備精華摘要…</p> : null}
   </section></main>;
 }
 
@@ -688,7 +714,7 @@ function GuestSaveActions({ assessment }: { assessment: ClientAssessment }) {
     <button className="secondary-button" type="button" onClick={() => { void makeClaim(); }}>傳給本人並保存</button>
     {claimUrl ? <p className="claim-link"><a href={claimUrl}>{claimUrl}</a></p> : null}
     {status ? <p className="local-note">{status}</p> : null}
-    <button className="text-button" type="button" onClick={() => setStatus('精華分享不含認領 token 或私人資料。')}>分享精華結果</button>
+    <button className="text-button" type="button" onClick={() => { window.location.assign(`/share/${encodeURIComponent(assessment.assessmentId)}`); }}>分享精華結果</button>
     <button className="text-button" type="button" onClick={() => setStatus('你可以稍後再決定是否保存。')}>先不用</button>
   </section>;
 }

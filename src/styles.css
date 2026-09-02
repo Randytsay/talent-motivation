@@ -228,6 +228,12 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .guest-save-actions .text-button { margin-top: 14px; }
 .claim-link { word-break: break-all; font-size: 12px; }
 .claim-link a { color: var(--ink); }
+.public-share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; }
+.public-share-grid article { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.public-share-grid small { color: var(--gold-deep); font-size: 12px; font-weight: 700; letter-spacing: .09em; }
+.public-share-grid strong { display: block; margin-top: 10px; color: var(--ink); font-family: 'Noto Serif TC', serif; font-size: 30px; }
+.public-share-grid p { margin: 7px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.public-share-home { display: inline-flex; align-items: center; justify-content: center; margin-top: 18px; text-decoration: none; }
 
 .report-panel { width: min(920px, 100%); margin: 0 auto; border-color: #d6ccb9; box-shadow: var(--shadow-lift); }
 .report-panel > .eyebrow { color: var(--gold-deep); }
@@ -273,6 +279,7 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .usage-options { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
   .usage-options .choice-button { min-height: 62px; padding: 6px 1px; font-size: 15px; }
   .priority-grid, .report-grid { grid-template-columns: 1fr; }
+  .public-share-grid { grid-template-columns: 1fr; }
   .birth-profile-cards { grid-template-columns: repeat(2, 1fr); }
   .report-grid article:nth-child(5) { grid-column: auto; }
   .mirror-row { gap: 4px; }

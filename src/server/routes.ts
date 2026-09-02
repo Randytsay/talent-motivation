@@ -220,13 +220,17 @@ export function createRouteHandlers(services: RuntimeServices = createRuntime())
       const assessment = await services.repositories.assessments.findById(assessmentId);
       if (!assessment) throw new HttpError(404, 'assessment_not_found', '找不到這份測驗結果。');
       const report = await services.repositories.reports.findByAssessmentId(assessmentId);
+      const configuredBaseUrl = services.config.appBaseUrl;
+      const landingBaseUrl = /^(https?:\/\/)(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/.test(configuredBaseUrl)
+        ? new URL(request.url).origin
+        : configuredBaseUrl;
       return json({ share: {
         lifePath: assessment.lifePath.value,
         top3: assessment.riasecResult.top3,
         top3Code: assessment.riasecResult.top3Code,
         repeatedSignals: report?.repeated_signals?.slice(0, 3) ?? [],
         summary: report?.summary ?? '這是一份自我探索摘要，不是人格或職涯定論。',
-        landingUrl: new URL('/', services.config.appBaseUrl).toString(),
+        landingUrl: new URL('/', landingBaseUrl).toString(),
       } });
     },
     lineWebhook: async (request: Request) => {

@@ -26,6 +26,7 @@ export interface RuntimeConfig {
     assessmentsTableId: string;
     aiReportsTableId: string;
     eventsTableId: string;
+    subjectsTableId?: string;
   };
   ai?: AIConfig;
 }
@@ -133,6 +134,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
     aiReportsTableId: 'LARK_AI_REPORTS_TABLE_ID',
     eventsTableId: 'LARK_EVENTS_TABLE_ID',
   });
+  if (lark && environment.LARK_SUBJECTS_TABLE_ID) lark.subjectsTableId = environment.LARK_SUBJECTS_TABLE_ID;
   const ai = readAIConfig(environment);
 
   const defaultDevelopmentMock = deployment === 'development' && !line && !lark && !ai;

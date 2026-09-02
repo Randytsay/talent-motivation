@@ -66,13 +66,26 @@ export type AssessmentStep =
   | 'riasec-result'
   | 'talent-usage'
   | 'priorities'
+  | 'reflection'
   | 'report';
+
+export type AssessmentMode = 'self' | 'co_present';
+
+export interface ReflectionAnswers {
+  energizingExperience: string;
+  currentFriction?: string;
+  unconstrainedExploration?: string;
+}
 
 export interface AssessmentDraft {
   version: 1;
   step: AssessmentStep;
   birthDate: string;
+  subjectId?: string;
+  assessmentMode?: AssessmentMode;
   lifePath?: LifePathResult;
+  birthProfile?: import('../lib/scoring/birthProfile').BirthProfileResult;
+  birthSignature?: import('../lib/scoring/birthSignature').BirthSignatureResult;
   lifePathResonance?: LifePathResonance;
   lifePathTopResonance?: string;
   riasecAnswers: Partial<Record<`q${string}`, RiasecAnswer>>;
@@ -82,4 +95,5 @@ export interface AssessmentDraft {
   explorationInterest?: ExplorationInterest;
   /** Explicit, event-scoped Presenter choice; absent means no consent. */
   presenterConsent?: boolean;
+  reflections?: ReflectionAnswers;
 }

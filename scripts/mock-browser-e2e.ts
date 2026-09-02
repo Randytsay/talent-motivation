@@ -28,6 +28,7 @@ function routeFor(pathname: string, handlers: ReturnType<typeof createRouteHandl
   if (pathname === '/api/auth/liff') return handlers.liffAuthenticate;
   if (pathname === '/api/assessments') return handlers.createAssessment;
   if (pathname === '/api/assessments/latest') return handlers.latestAssessment;
+  if (pathname === '/api/subjects') return (request) => request.method === 'POST' ? handlers.createSubject(request) : handlers.listSubjects(request);
   if (pathname === '/api/reports/generate') return handlers.generateReport;
   if (pathname.startsWith('/api/reports/')) return (request) => handlers.report(request, pathname.slice('/api/reports/'.length));
   if (pathname === '/api/presenter/current') return handlers.presenterCurrent;

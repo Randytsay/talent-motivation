@@ -5,6 +5,7 @@ import type { RuntimeConfig } from './env';
 
 const SESSION_COOKIE = 'tm_session';
 const OAUTH_STATE_COOKIE = 'tm_oauth_state';
+const PENDING_CLAIM_COOKIE = 'tm_pending_claim';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 const STATE_MAX_AGE_SECONDS = 60 * 10;
 
@@ -97,6 +98,19 @@ export function createOAuthState(config: RuntimeConfig): { state: string; cookie
 
 export function clearOAuthStateCookie(config: RuntimeConfig): string {
   return serializeCookie(OAUTH_STATE_COOKIE, '', config, 0);
+}
+
+/** Keeps a private claim token across LINE OAuth redirects without exposing it in logs. */
+export function createPendingClaimCookie(token: string, config: RuntimeConfig): string {
+  return serializeCookie(PENDING_CLAIM_COOKIE, token, config, STATE_MAX_AGE_SECONDS);
+}
+
+export function clearPendingClaimCookie(config: RuntimeConfig): string {
+  return serializeCookie(PENDING_CLAIM_COOKIE, '', config, 0);
+}
+
+export function readPendingClaim(request: Request): string | undefined {
+  return cookieValue(request, PENDING_CLAIM_COOKIE);
 }
 
 export function verifyOAuthState(request: Request, state: string | null, config: RuntimeConfig): void {

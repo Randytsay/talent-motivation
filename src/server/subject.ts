@@ -21,6 +21,12 @@ export interface SubjectRecord {
   archived: boolean;
 }
 
+export interface SubjectCreateInput {
+  subjectKind: Exclude<SubjectKind, 'claimed'>;
+  displayLabel: string;
+  birthDate: string;
+}
+
 export interface ClaimPreview {
   displayLabel: string;
   lifePath?: number;
@@ -43,4 +49,11 @@ export function canParticipantAccessSubject(subject: SubjectRecord, participantI
 /** Birthday equality is never enough to infer that two Subject records are the same person. */
 export function shouldAutoMergeSubjects(): false {
   return false;
+}
+
+export function subjectForClient(subject: SubjectRecord): Omit<SubjectRecord, 'birthDate' | 'claimTokenHash'> {
+  const safe = { ...subject } as Partial<SubjectRecord>;
+  delete safe.birthDate;
+  delete safe.claimTokenHash;
+  return safe as Omit<SubjectRecord, 'birthDate' | 'claimTokenHash'>;
 }

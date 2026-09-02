@@ -2,10 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { RIASEC_QUESTIONS } from '../data/riasecQuestions';
 import { calculateLifePath } from '../lib/scoring/lifePath';
 import { scoreRiasec } from '../lib/scoring/riasec';
+import { calculateBirthProfile } from '../lib/scoring/birthProfile';
+import { calculateBirthSignature } from '../lib/scoring/birthSignature';
 import type { ExplorationInterest, LifePathResonance, Priority, RiasecAnswer, RiasecCode, TalentUsage } from '../types/domain';
 import type { AssessmentInput, AssessmentRecord, Identity, Participant } from './contracts';
 import { HttpError } from './http';
 import type { EventsRepository, Repositories } from './repositories';
+import { canParticipantAccessSubject, type SubjectKind, type SubjectRecord } from './subject';
 
 const VALID_RESONANCE = new Set<LifePathResonance>(['high', 'partial', 'low']);
 const VALID_CODES = new Set<RiasecCode>(['R', 'I', 'A', 'S', 'E', 'C']);
@@ -57,9 +60,25 @@ function inputFrom(payload: Record<string, unknown>): AssessmentInput {
   if (payload.presenterConsent !== undefined && typeof payload.presenterConsent !== 'boolean') return invalid('Presenter 同意格式無效。');
   if (payload.lifePath !== undefined && !isRecord(payload.lifePath)) return invalid('Life Path 結果格式無效。');
   if (payload.riasecResult !== undefined && !isRecord(payload.riasecResult)) return invalid('RIASEC 結果格式無效。');
+  if (payload.subjectId !== undefined && (typeof payload.subjectId !== 'string' || !payload.subjectId.trim())) return invalid('Subject 識別格式無效。');
+  if (payload.assessmentMode !== undefined && payload.assessmentMode !== 'self' && payload.assessmentMode !== 'co_present') return invalid('測驗模式格式無效。');
+  if (payload.birthProfile !== undefined && !isRecord(payload.birthProfile)) return invalid('Birth Profile 結果格式無效。');
+  if (payload.birthSignature !== undefined && !isRecord(payload.birthSignature)) return invalid('Birth Signature 結果格式無效。');
+  const reflections = payload.reflections;
+  if (reflections !== undefined) {
+    if (!isRecord(reflections)) return invalid('反思回答格式無效。');
+    const energizing = reflections.energizingExperience;
+    if (typeof energizing !== 'string' || energizing.trim().length < 3 || energizing.trim().length > 300) return invalid('請提供至少 3 個字且不超過 300 字的能量反思。');
+    for (const key of ['currentFriction', 'unconstrainedExploration'] as const) {
+      const value = reflections[key];
+      if (value !== undefined && (typeof value !== 'string' || value.trim().length > 300)) return invalid('反思回答不可超過 300 字。');
+    }
+  }
 
   return {
     birthDate,
+    subjectId: payload.subjectId as string | undefined,
+    assessmentMode: payload.assessmentMode as AssessmentInput['assessmentMode'],
     lifePath: payload.lifePath as AssessmentInput['lifePath'],
     lifePathResonance: lifePathResonance as LifePathResonance,
     lifePathTopResonance,
@@ -69,6 +88,13 @@ function inputFrom(payload: Record<string, unknown>): AssessmentInput {
     talentUsage: talentUsage as TalentUsage,
     priorities: priorities as Priority[],
     explorationInterest: explorationInterest as ExplorationInterest,
+    reflections: reflections === undefined ? undefined : {
+      energizingExperience: (reflections as Record<string, unknown>).energizingExperience as string,
+      ...((reflections as Record<string, unknown>).currentFriction ? { currentFriction: String((reflections as Record<string, unknown>).currentFriction).trim() } : {}),
+      ...((reflections as Record<string, unknown>).unconstrainedExploration ? { unconstrainedExploration: String((reflections as Record<string, unknown>).unconstrainedExploration).trim() } : {}),
+    },
+    birthProfile: payload.birthProfile as AssessmentInput['birthProfile'],
+    birthSignature: payload.birthSignature as AssessmentInput['birthSignature'],
     eventId: payload.eventId as string | undefined,
     presenterConsent: payload.presenterConsent as boolean | undefined,
   };
@@ -89,6 +115,11 @@ export function validateAssessment(payload: Record<string, unknown>): Omit<Asses
   }
   if (input.lifePath && !sameJson(input.lifePath, lifePath)) return invalid('Life Path 結果與伺服器計算不一致。');
 
+  const birthProfile = calculateBirthProfile(input.birthDate);
+  const birthSignature = calculateBirthSignature(input.birthDate);
+  if (input.birthProfile && !sameJson(input.birthProfile, birthProfile)) return invalid('Birth Profile 結果與伺服器計算不一致。');
+  if (input.birthSignature && !sameJson(input.birthSignature, birthSignature)) return invalid('Birth Signature 結果與伺服器計算不一致。');
+
   const riasecResult = scoreRiasec(RIASEC_QUESTIONS, input.riasecAnswers);
   if (input.riasecResult && !sameJson(input.riasecResult, riasecResult)) return invalid('RIASEC 結果與伺服器計算不一致。');
 
@@ -96,6 +127,10 @@ export function validateAssessment(payload: Record<string, unknown>): Omit<Asses
     eventId: input.eventId,
     birthDate: input.birthDate,
     lifePath,
+    birthProfile,
+    birthSignature,
+    subjectId: input.subjectId,
+    assessmentMode: input.assessmentMode,
     lifePathResonance: input.lifePathResonance,
     lifePathTopResonance: input.lifePathTopResonance.trim(),
     riasecAnswers: input.riasecAnswers as Record<`q${string}`, RiasecAnswer>,
@@ -104,8 +139,9 @@ export function validateAssessment(payload: Record<string, unknown>): Omit<Asses
     talentUsage: input.talentUsage,
     priorities: input.priorities,
     explorationInterest: input.explorationInterest,
-    presenterConsent: input.presenterConsent === true,
-    presenterConsentAt: input.presenterConsent ? new Date().toISOString() : undefined,
+    reflections: input.reflections,
+    presenterConsent: Boolean(input.eventId && input.presenterConsent === true),
+    presenterConsentAt: input.eventId && input.presenterConsent ? new Date().toISOString() : undefined,
   };
 }
 
@@ -118,14 +154,39 @@ export async function saveAssessment(
 ): Promise<{ participant: Participant; assessment: AssessmentRecord }> {
   const validated = validateAssessment(payload);
   const participant = await repositories.participants.upsertIdentity(identity);
+  let subject: SubjectRecord | null = validated.subjectId
+    ? await repositories.subjects.findById(validated.subjectId)
+    : await repositories.subjects.findSelfForParticipant(participant.participantId);
+  if (validated.subjectId && !subject) throw new HttpError(404, 'subject_not_found', '找不到這個探索對象。');
+  if (subject && !canParticipantAccessSubject(subject, participant.participantId)) {
+    throw new HttpError(403, 'subject_forbidden', '你目前無法存取這個探索對象。');
+  }
+  if (subject && subject.birthDate !== validated.birthDate) {
+    throw new HttpError(409, 'subject_birth_date_mismatch', '這個出生日期和目前探索對象保存的資料不同，請建立另一個探索對象。');
+  }
+  if (!subject) {
+    const nowValue = now();
+    const subjectKind: SubjectKind = validated.assessmentMode === 'co_present' ? 'guest' : 'self';
+    subject = await repositories.subjects.create({
+      subjectId: randomUUID(), ownerParticipantId: subjectKind === 'self' ? participant.participantId : undefined,
+      createdByParticipantId: participant.participantId, subjectKind, displayLabel: subjectKind === 'self' ? '我自己' : '另一位探索者',
+      birthDate: validated.birthDate, claimStatus: subjectKind === 'self' ? 'not_applicable' : 'unclaimed',
+      createdAt: nowValue, updatedAt: nowValue, archived: false,
+    });
+  }
   const assessment: AssessmentRecord = {
     ...validated,
     assessmentId: randomUUID(),
     participantId: participant.participantId,
+    subjectId: subject.subjectId,
+    createdByParticipantId: participant.participantId,
+    assessmentMode: validated.assessmentMode ?? (subject.subjectKind === 'guest' ? 'co_present' : 'self'),
+    presenterConsentAt: validated.presenterConsent ? now() : undefined,
     completedAt: now(),
   };
   await repositories.assessments.append(assessment);
   await repositories.participants.setLatestAssessment(participant.participantId, assessment.assessmentId);
+  await repositories.subjects.setLastAssessment(subject.subjectId, assessment.assessmentId);
   if (assessment.presenterConsent && assessment.eventId) {
     const event = await eventRepository.findById(assessment.eventId);
     if (event?.status === 'active') await eventRepository.setCurrentPresenterAssessment(event.eventId, assessment.assessmentId);

@@ -1,20 +1,25 @@
 import { randomUUID, sign } from 'node:crypto';
 import type { AIReport, AssessmentRecord } from './contracts';
 import { HttpError } from './http';
+import { birthProfileFacts } from '../lib/scoring/birthProfile';
+import { birthSignatureFacts } from '../lib/scoring/birthSignature';
+import { extractRiasecItemSignals } from '../lib/scoring/riasecSignals';
 
 export interface AIProvider {
   generate(assessment: AssessmentRecord): Promise<AIReportContent>;
 }
 
 const REQUIRED_KEYS = [
-  'repeated_signals', 'motivator_summary', 'possible_tensions', 'exploration_directions', 'reflection_question', 'summary',
+  'repeated_signals', 'birth_profile_summary', 'motivator_summary', 'possible_tensions', 'unused_potential', 'exploration_directions', 'reflection_question', 'summary',
 ] as const;
-const PROHIBITED_PATTERNS = [/你就是/, /你的天命/, /你一定適合/, /這證明你/, /你應該辭職/, /加入某商業機會/];
+const PROHIBITED_PATTERNS = [/你就是/, /你的天命/, /你一定適合/, /這證明你/, /你應該辭職/, /加入某商業機會/, /命中注定/, /財運/, /疾病/, /健康預測/, /你天生就是/, /你一定要/, /命定職業/, /天生不足/];
 
 export interface AIReportContent {
   repeated_signals: string[];
+  birth_profile_summary: string;
   motivator_summary: string;
   possible_tensions: string[];
+  unused_potential: string;
   exploration_directions: string[];
   reflection_question: string;
   summary: string;
@@ -28,6 +33,10 @@ function strings(value: unknown): value is string[] {
 export function validateAIReport(value: unknown): AIReportContent {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new HttpError(502, 'ai_invalid_schema', 'AI 報告格式無效。');
   const record = value as Record<string, unknown>;
+  const rawCopy = JSON.stringify(record);
+  if (PROHIBITED_PATTERNS.some((pattern) => pattern.test(rawCopy))) {
+    throw new HttpError(502, 'ai_content_guardrail', 'AI 報告未通過內容安全檢查。');
+  }
   const keys = Object.keys(record).sort();
   if (keys.length !== REQUIRED_KEYS.length || !REQUIRED_KEYS.every((key) => keys.includes(key))) {
     throw new HttpError(502, 'ai_invalid_schema', 'AI 報告欄位不符合固定格式。');
@@ -35,7 +44,7 @@ export function validateAIReport(value: unknown): AIReportContent {
   if (!strings(record.repeated_signals) || !strings(record.possible_tensions) || !strings(record.exploration_directions)) {
     throw new HttpError(502, 'ai_invalid_schema', 'AI 報告清單格式無效。');
   }
-  const textKeys = ['motivator_summary', 'reflection_question', 'summary'] as const;
+  const textKeys = ['birth_profile_summary', 'motivator_summary', 'unused_potential', 'reflection_question', 'summary'] as const;
   if (!textKeys.every((key) => typeof record[key] === 'string' && record[key].trim())) {
     throw new HttpError(502, 'ai_invalid_schema', 'AI 報告文字格式無效。');
   }
@@ -45,8 +54,10 @@ export function validateAIReport(value: unknown): AIReportContent {
   }
   return {
     repeated_signals: record.repeated_signals as string[],
+    birth_profile_summary: record.birth_profile_summary as string,
     motivator_summary: record.motivator_summary as string,
     possible_tensions: record.possible_tensions as string[],
+    unused_potential: record.unused_potential as string,
     exploration_directions: record.exploration_directions as string[],
     reflection_question: record.reflection_question as string,
     summary: record.summary as string,
@@ -62,8 +73,12 @@ export class MockAIProvider implements AIProvider {
         `活動偏好結果中的 ${top} 是值得留意的投入線索。`,
         `你選擇「${assessment.subjectiveDriver}」作為做了反而有精神的線索。`,
       ],
+      birth_profile_summary: assessment.birthProfile
+        ? `出生結構的核心數 ${assessment.birthProfile.pyramid.main}，外顯與內在兩層可作為觀察自己的象徵語言。`
+        : '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。',
       motivator_summary: '這些線索可能反映你在特定投入方式中更容易感到有意義；可以持續觀察實際情境。',
       possible_tensions: ['活動偏好與你主觀感受到的能量可能不完全相同，兩者都可以保留並繼續觀察。'],
+      unused_potential: assessment.talentUsage < 60 ? '目前的天賦使用感偏低，可以從一個小任務開始試著增加投入。' : '目前已使用一部分天賦，仍可觀察哪些情境能讓投入感更穩定。',
       exploration_directions: ['先從現職中調整一個可嘗試的小任務，再觀察投入後的感受。'],
       reflection_question: '最近哪一件具體事情，讓你投入後感到更有精神？',
       summary: `這是一份以 ${top} 與你的主觀回饋為線索的探索摘要，不是職涯或人格定論。`,
@@ -81,8 +96,10 @@ const REPORT_JSON_SCHEMA = {
   type: 'object',
   properties: {
     repeated_signals: { type: 'array', items: { type: 'string' } },
+    birth_profile_summary: { type: 'string' },
     motivator_summary: { type: 'string' },
     possible_tensions: { type: 'array', items: { type: 'string' } },
+    unused_potential: { type: 'string' },
     exploration_directions: { type: 'array', items: { type: 'string' } },
     reflection_question: { type: 'string' },
     summary: { type: 'string' },
@@ -97,11 +114,14 @@ const REPORT_SYSTEM_PROMPT = [
   '只能依據提供的 deterministic facts 解讀，不能重算或修改 Life Path、RIASEC scores、Top3。',
   '不可使用「你就是、你的天命、你一定適合、這證明你、你應該辭職」等定論；可使用「可能、值得留意、可以探索」。',
   '探索方向優先寫現職調整與小型副專案，不可導向特定商業機會。',
-  '只輸出固定六欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
+  '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
 ].join('\n');
 
 function aiFacts(assessment: AssessmentRecord): string {
+  const itemSignals = extractRiasecItemSignals(assessment.riasecAnswers);
   return JSON.stringify({
+    birth_profile: assessment.birthProfile ? birthProfileFacts(assessment.birthProfile) : undefined,
+    birth_signature: assessment.birthSignature ? birthSignatureFacts(assessment.birthSignature) : undefined,
     life_path: assessment.lifePath.value,
     life_path_resonance: assessment.lifePathResonance,
     life_path_top_resonance: assessment.lifePathTopResonance,
@@ -112,7 +132,25 @@ function aiFacts(assessment: AssessmentRecord): string {
     talent_usage_pct: assessment.talentUsage,
     priorities: assessment.priorities,
     exploration_interest: assessment.explorationInterest,
+    riasec_item_signals: {
+      high: itemSignals.highItems.map(({ dimension, text }) => ({ dimension, text })),
+      low: itemSignals.lowItems.map(({ dimension, text }) => ({ dimension, text })),
+    },
+    reflections: assessment.reflections,
+    age_band: assessment.birthProfile?.ageBand,
   });
+}
+
+function withV2Defaults(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  return {
+    ...record,
+    birth_profile_summary: typeof record.birth_profile_summary === 'string' && record.birth_profile_summary.trim()
+      ? record.birth_profile_summary : '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。',
+    unused_potential: typeof record.unused_potential === 'string' && record.unused_potential.trim()
+      ? record.unused_potential : '可以從一個小任務開始觀察天賦使用感的變化。',
+  };
 }
 
 function parseProviderJson(text: string, errorCode: string): AIReportContent {
@@ -127,7 +165,7 @@ function parseProviderJson(text: string, errorCode: string): AIReportContent {
     ? withoutFence.slice(firstBrace, lastBrace + 1)
     : withoutFence;
   try {
-    return validateAIReport(JSON.parse(candidate));
+    return validateAIReport(withV2Defaults(JSON.parse(candidate)));
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw new HttpError(502, errorCode, 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');

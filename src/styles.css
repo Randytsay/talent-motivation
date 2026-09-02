@@ -144,6 +144,12 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .two-column-notes > div + div { border-left: 1px solid var(--line); }
 .two-column-notes small, .report-grid small, .reflection-card small { color: var(--gold-deep); font-size: 12px; font-weight: 700; letter-spacing: .09em; }
 .two-column-notes p { margin: 8px 0 0; color: #5e6774; font-size: 14px; line-height: 1.75; }
+.birth-profile-compact { margin: 26px auto 0; padding-top: 20px; border-top: 1px solid var(--line); text-align: left; }
+.birth-profile-compact > small { color: var(--gold-deep); font-size: 12px; font-weight: 700; letter-spacing: .09em; }
+.birth-profile-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.birth-profile-cards div { display: grid; gap: 4px; padding: 13px 10px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.birth-profile-cards b { color: var(--ink); font-family: 'Noto Serif TC', serif; font-size: 24px; }
+.birth-profile-cards span { color: #7b818b; font-size: 11px; line-height: 1.45; }
 
 .choice-grid { display: grid; gap: 10px; margin-top: 27px; }
 .choice-grid--three { grid-template-columns: repeat(3, 1fr); }
@@ -212,6 +218,16 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .presenter-consent ul, .privacy-list { margin: 10px 0 0; padding-left: 1.3em; color: #4d5663; font-size: 14px; line-height: 1.75; }
 .presenter-consent__choice { display: flex; align-items: flex-start; gap: 11px; margin-top: 20px; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.55; cursor: pointer; }
 .presenter-consent__choice input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--ink); flex: 0 0 auto; }
+.guest-disclosure { margin: 14px 0 0; padding: 14px 16px; border-left: 3px solid var(--clay); color: #6d625e; background: #fff7f3; font-size: 13px; line-height: 1.75; }
+.reflection-inputs { display: grid; gap: 9px; margin-top: 34px; padding-top: 27px; border-top: 1px solid var(--line); }
+.reflection-inputs .field-label { margin: 0 0 5px; }
+.reflection-inputs label { color: var(--ink); font-size: 13px; font-weight: 700; }
+.reflection-inputs textarea { width: 100%; min-height: 74px; resize: vertical; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--ink); background: #fff; line-height: 1.6; }
+.guest-save-actions { margin-top: 28px; }
+.guest-save-actions .primary-button, .guest-save-actions .secondary-button { display: block; margin-top: 14px; }
+.guest-save-actions .text-button { margin-top: 14px; }
+.claim-link { word-break: break-all; font-size: 12px; }
+.claim-link a { color: var(--ink); }
 
 .report-panel { width: min(920px, 100%); margin: 0 auto; border-color: #d6ccb9; box-shadow: var(--shadow-lift); }
 .report-panel > .eyebrow { color: var(--gold-deep); }
@@ -257,6 +273,7 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .usage-options { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
   .usage-options .choice-button { min-height: 62px; padding: 6px 1px; font-size: 15px; }
   .priority-grid, .report-grid { grid-template-columns: 1fr; }
+  .birth-profile-cards { grid-template-columns: repeat(2, 1fr); }
   .report-grid article:nth-child(5) { grid-column: auto; }
   .mirror-row { gap: 4px; }
   .mirror-row span { width: 39px; height: 39px; font-size: 13px; }

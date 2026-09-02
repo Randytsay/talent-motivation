@@ -24,6 +24,7 @@ const VALID_STEPS = new Set<AssessmentStep>([
   'riasec-result',
   'talent-usage',
   'priorities',
+  'reflection',
   'report',
 ]);
 const VALID_LIFE_PATHS = new Set<LifePath>([1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 22, 33]);
@@ -136,6 +137,14 @@ function isDraft(value: unknown): value is AssessmentDraft {
   if (candidate.explorationInterest !== undefined && !VALID_EXPLORATION.has(candidate.explorationInterest)) return false;
   if (step === 'report' && (candidate.priorities.length === 0 || !candidate.explorationInterest)) return false;
   if (candidate.presenterConsent !== undefined && typeof candidate.presenterConsent !== 'boolean') return false;
+  if (candidate.subjectId !== undefined && (typeof candidate.subjectId !== 'string' || !candidate.subjectId.trim())) return false;
+  if (candidate.assessmentMode !== undefined && candidate.assessmentMode !== 'self' && candidate.assessmentMode !== 'co_present') return false;
+  if (candidate.reflections !== undefined) {
+    const reflections = candidate.reflections;
+    if (!reflections || typeof reflections.energizingExperience !== 'string' || reflections.energizingExperience.trim().length < 3 || reflections.energizingExperience.length > 300) return false;
+    if (reflections.currentFriction !== undefined && (typeof reflections.currentFriction !== 'string' || reflections.currentFriction.length > 300)) return false;
+    if (reflections.unconstrainedExploration !== undefined && (typeof reflections.unconstrainedExploration !== 'string' || reflections.unconstrainedExploration.length > 300)) return false;
+  }
 
   return true;
 }

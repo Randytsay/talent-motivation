@@ -18,6 +18,9 @@ export function presenterAllowlist(input: {
     top3Code: assessment.riasecResult.top3Code,
     subjectiveDriver: assessment.subjectiveDriver,
     talentUsage: assessment.talentUsage,
+    ...(assessment.birthProfile ? {
+      birthProfileSignal: `出生結構核心數 ${assessment.birthProfile.pyramid.main} · ${assessment.birthProfile.currentStage.label}`,
+    } : {}),
     ...(input.repeatedSignals ? { repeatedSignals: input.repeatedSignals } : {}),
   };
 }

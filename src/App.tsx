@@ -7,12 +7,15 @@ import { PresenterPage } from './components/PresenterPage';
 import { LIFE_PATH_CONTENT } from './data/lifePathContent';
 import { RIASEC_META, RIASEC_QUESTIONS } from './data/riasecQuestions';
 import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePath';
+import { calculateBirthProfile } from './lib/scoring/birthProfile';
+import { calculateBirthSignature } from './lib/scoring/birthSignature';
 import { scoreRiasec } from './lib/scoring/riasec';
-import { ApiError, createAssessment, generateReport, getLatestAssessment, getReport, type ClientAssessment } from './lib/api/client';
+import { ApiError, createAssessment, createClaim, createSubject, generateReport, getClaimPreview, getLatestAssessment, getPublicShare, getReport, redeemClaim, type ClientAssessment } from './lib/api/client';
 import { useAuthBootstrap, type AuthState } from './lib/api/authBootstrap';
 import { localAssessmentDraftRepository } from './lib/storage/assessmentRepository';
 import type {
   AssessmentDraft,
+  AssessmentMode,
   ExplorationInterest,
   LifePathResonance,
   Priority,
@@ -56,6 +59,7 @@ function createEmptyDraft(): AssessmentDraft {
     birthDate: '',
     riasecAnswers: {},
     priorities: [],
+    assessmentMode: 'self',
   };
 }
 
@@ -65,7 +69,62 @@ function energyLabel(code?: RiasecCode): string {
 
 function App() {
   if (window.location.pathname === '/presenter') return <PresenterPage />;
+  if (window.location.pathname === '/claim') return <ClaimPage />;
+  if (window.location.pathname.startsWith('/share/')) return <PublicSharePage />;
   return <AssessmentApp />;
+}
+
+function ClaimPage() {
+  const auth = useAuthBootstrap();
+  const token = new URLSearchParams(window.location.search).get('token') ?? '';
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof getClaimPreview>>['preview'] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!token) return;
+    void getClaimPreview(token).then((response) => setPreview(response.preview)).catch(() => setError('這個認領連結已失效或已使用。'));
+  }, [token]);
+  async function redeem() {
+    try {
+      await redeemClaim(token);
+      setDone(true);
+    } catch (claimError) {
+      setError(claimError instanceof ApiError ? claimError.message : '目前無法保存這份結果。');
+    }
+  }
+  return <main className="site-shell"><section className="panel panel--narrow entrance claim-panel">
+    <p className="eyebrow">私人認領連結</p>
+    <h1>{done ? '已保存到你的帳號' : '把這份探索結果保存下來'}</h1>
+    {preview ? <><p className="lede">{preview.displayLabel} · Life Path {preview.lifePath ?? '—'} · RIASEC {preview.top3Code ?? '—'}</p><p className="local-note">連結有效至 {new Date(preview.expiresAt).toLocaleString('zh-TW')}</p></> : null}
+    {error ? <p className="field-error" role="alert">{error}</p> : null}
+    {!done && preview ? <button className="primary-button" type="button" disabled={auth.status === 'loading'} onClick={() => { if (auth.status === 'authenticated' || auth.status === 'mock') void redeem(); else window.location.assign(`/api/auth/line/start?claimToken=${encodeURIComponent(token)}`); }}>{auth.status === 'authenticated' || auth.status === 'mock' ? '用 LINE 保存我的結果' : '請先使用 LINE 登入'}</button> : null}
+    {!done && !preview ? <button className="secondary-button" type="button" onClick={() => { window.location.assign('/'); }}>回到首頁</button> : null}
+  </section></main>;
+}
+
+function PublicSharePage() {
+  const assessmentId = decodeURIComponent(window.location.pathname.slice('/share/'.length));
+  const [share, setShare] = useState<Awaited<ReturnType<typeof getPublicShare>>['share'] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!assessmentId) return;
+    void getPublicShare(assessmentId).then((response) => setShare(response.share)).catch(() => setError('目前無法讀取這份精華摘要。'));
+  }, [assessmentId]);
+  return <main className="site-shell"><section className="panel panel--narrow entrance public-share-panel">
+    <p className="eyebrow">公開精華摘要</p>
+    <h1>一份可以安心分享的探索線索</h1>
+    <p className="lede">這張卡片只保留適合公開的摘要，不包含出生日期、原始答案或認領連結。</p>
+    {error ? <p className="field-error" role="alert">{error}</p> : null}
+    {share ? <>
+      <div className="public-share-grid">
+        <article><small>Life Path</small><strong>{share.lifePath}</strong></article>
+        <article><small>RIASEC Top 3</small><strong>{share.top3Code}</strong><p>{share.top3.join('、')}</p></article>
+      </div>
+      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.join(' ') || '這份摘要目前沒有額外的重複線索。'}</p></div>
+      <p className="local-note">{share.summary}</p>
+      <a className="secondary-button public-share-home" href={share.landingUrl}>回到天賦原動力</a>
+    </> : !error ? <p className="local-note">正在準備精華摘要…</p> : null}
+  </section></main>;
 }
 
 function AssessmentApp() {
@@ -135,8 +194,10 @@ function AssessmentApp() {
   function revealLifePath() {
     try {
       const lifePath = calculateLifePath(draft.birthDate);
+      const birthProfile = calculateBirthProfile(draft.birthDate);
+      const birthSignature = calculateBirthSignature(draft.birthDate);
       setDateError(null);
-      patchDraft({ lifePath, step: 'life-path' });
+      patchDraft({ lifePath, birthProfile, birthSignature, step: 'life-path' });
     } catch (error) {
       setDateError(error instanceof LifePathValidationError ? error.message : '無法計算這個日期。');
     }
@@ -176,8 +237,19 @@ function AssessmentApp() {
     setIsSaving(true);
     setPersistenceError(null);
     try {
+      let subjectId = draft.subjectId;
+      if (!subjectId) {
+        const created = await createSubject({
+          subjectKind: draft.assessmentMode === 'co_present' ? 'guest' : 'self',
+          displayLabel: draft.assessmentMode === 'co_present' ? '另一位探索者' : '我自己',
+          birthDate: draft.birthDate,
+        });
+        subjectId = created.subject.subjectId;
+      }
       const { assessment } = await createAssessment({
         birthDate: draft.birthDate,
+        subjectId,
+        assessmentMode: draft.assessmentMode ?? 'self',
         lifePath: draft.lifePath,
         lifePathResonance: draft.lifePathResonance,
         lifePathTopResonance: draft.lifePathTopResonance,
@@ -187,6 +259,11 @@ function AssessmentApp() {
         talentUsage: draft.talentUsage,
         priorities: draft.priorities,
         explorationInterest: draft.explorationInterest,
+        ...(draft.reflections?.energizingExperience?.trim() ? { reflections: {
+          energizingExperience: draft.reflections.energizingExperience.trim(),
+          ...(draft.reflections.currentFriction?.trim() ? { currentFriction: draft.reflections.currentFriction.trim() } : {}),
+          ...(draft.reflections.unconstrainedExploration?.trim() ? { unconstrainedExploration: draft.reflections.unconstrainedExploration.trim() } : {}),
+        } } : {}),
         ...(eventId ? { eventId, presenterConsent: draft.presenterConsent === true } : {}),
       } satisfies AssessmentInput);
       setCompletedAssessment(assessment);
@@ -244,7 +321,7 @@ function AssessmentApp() {
               <small>資料使用與分享範圍</small>
               <ul className="privacy-list">
                 <li>出生日期只用來計算 Life Path 與保存本次探索紀錄。</li>
-                <li>AI 綜合解析只接收已計算完成的 Life Path、RIASEC、主觀回饋與選擇；不傳送完整出生日期與 18 題原始答案。</li>
+                <li>出生日期由程式計算 Birth Profile、Birth Signature 與年齡區間；AI 只接收這些計算後的象徵線索、RIASEC 衍生線索與你的反思回答，不會收到完整出生日期、LINE ID 或 18 題原始答案。</li>
                 <li>測驗結果不會自動公開。Presenter 分享必須另外取得本次活動的明確同意。</li>
                 <li>Presenter 不顯示完整出生日期、探索意願或其他未授權私人資料。</li>
               </ul>
@@ -271,6 +348,13 @@ function AssessmentApp() {
                 patchDraft({ birthDate: event.target.value });
               }}
             />
+            <p className="field-label">這是你本人的出生日期嗎？</p>
+            <div className="choice-grid choice-grid--three">
+              {([['self', '是，我自己'], ['co_present', '不是，我在陪另一位一起探索']] as Array<[AssessmentMode, string]>).map(([mode, label]) => (
+                <ChoiceButton key={mode} selected={(draft.assessmentMode ?? 'self') === mode} onClick={() => patchDraft({ assessmentMode: mode, subjectId: undefined })}>{label}</ChoiceButton>
+              ))}
+            </div>
+            {draft.assessmentMode === 'co_present' ? <p className="guest-disclosure">請讓被探索的人親自回答後續題目。這份結果會先完整呈現；在對方認領前，陪同者可以暫時查看，認領後陪同者將不再有一般私人存取權。</p> : null}
             {dateError ? <p className="field-error" role="alert">{dateError}</p> : null}
             <button className="primary-button" type="button" onClick={revealLifePath}>看看這面鏡子</button>
             <p className="disclaimer">{DISCLAIMER}</p>
@@ -290,6 +374,15 @@ function AssessmentApp() {
               <div><small>容易發光</small><p>{lifePathContent.strengths[0]}</p></div>
               <div><small>容易耗能</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
+            {draft.birthProfile ? <div className="birth-profile-compact">
+              <small>出生結構快照</small>
+              <div className="birth-profile-cards">
+                <div><b>{draft.birthProfile.pyramid.main}</b><span>金字塔核心數 O</span></div>
+                <div><b>{draft.birthProfile.pyramid.outerComposite}</b><span>外顯綜合 M</span></div>
+                <div><b>{draft.birthProfile.pyramid.innerComposite}</b><span>內在綜合 N</span></div>
+                <div><b>{draft.birthProfile.currentStage.number ?? '—'}</b><span>{draft.birthProfile.currentStage.label}</span></div>
+              </div>
+            </div> : null}
             <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'resonance' })}>這段有沒有打中你？</button>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
@@ -458,6 +551,15 @@ function AssessmentApp() {
                 ))}
               </div>
             </div>
+            <div className="reflection-inputs">
+              <p className="field-label">留下一點你的反思（可選，第一題至少 3 個字）</p>
+              <label htmlFor="reflection-energizing">最近哪件事做完雖然累，心裡卻很有成就感？</label>
+              <textarea id="reflection-energizing" maxLength={300} value={draft.reflections?.energizingExperience ?? ''} onChange={(event) => patchDraft({ reflections: { ...(draft.reflections ?? { energizingExperience: '' }), energizingExperience: event.target.value } })} />
+              <label htmlFor="reflection-friction">現在最消耗你、最想改善的是什麼？</label>
+              <textarea id="reflection-friction" maxLength={300} value={draft.reflections?.currentFriction ?? ''} onChange={(event) => patchDraft({ reflections: { ...(draft.reflections ?? { energizingExperience: '' }), currentFriction: event.target.value } })} />
+              <label htmlFor="reflection-exploration">如果暫時不考慮現實限制，你最想嘗試什麼？</label>
+              <textarea id="reflection-exploration" maxLength={300} value={draft.reflections?.unconstrainedExploration ?? ''} onChange={(event) => patchDraft({ reflections: { ...(draft.reflections ?? { energizingExperience: '' }), unconstrainedExploration: event.target.value } })} />
+            </div>
             {eventId ? (
               <fieldset className="presenter-consent">
                 <legend>是否願意讓講師在本次活動中，將以下探索摘要顯示在 Presenter 畫面？</legend>
@@ -545,6 +647,7 @@ function ServerReport({
           <p className="lede">這裡呈現的是已保存的回答與伺服器重新驗證的計算結果；它們可以成為你接下來觀察自己的線索。</p>
           <div className="report-grid">
             <article><small>第一面鏡子 · 自我反思</small><strong>{assessment.lifePath.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
+            {assessment.birthProfile ? <article><small>出生結構這面鏡子</small><strong>核心 {assessment.birthProfile.pyramid.main} · 外顯 {assessment.birthProfile.pyramid.outerComposite} · 內在 {assessment.birthProfile.pyramid.innerComposite}</strong><p>{assessment.birthProfile.currentStage.label} · {assessment.birthProfile.currentStage.number ?? '—'}</p></article> : null}
             <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{assessment.riasecResult.top3Code}</strong><p>{assessment.riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
             <article><small>本人能量線索</small><strong>{energyLabel(assessment.subjectiveDriver)}</strong><p>{energyComparison}</p></article>
             <article><small>第三面鏡子 · 天賦使用感</small><strong>{assessment.talentUsage}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
@@ -556,21 +659,64 @@ function ServerReport({
           </div>
           {report ? (
             <div className="reflection-card" style={{ marginTop: 26 }}>
-              <small>重複出現的線索</small>
+              <small>你的三個高重複訊號</small>
               <p>{report.repeated_signals.join(' ')}</p>
+              <small>出生結構這面鏡子</small>
+              <p>{report.birth_profile_summary}</p>
               <small>可能的原動力</small>
               <p>{report.motivator_summary}</p>
+              <small>可能還沒被充分使用的部分</small>
+              <p>{report.unused_potential}</p>
+              {report.possible_tensions?.length ? <><small>值得留意的張力</small><p>{report.possible_tensions.join(' ')}</p></> : null}
+              {report.exploration_directions?.length ? <><small>可以先試的小方向</small><p>{report.exploration_directions.join(' ')}</p></> : null}
               <small>給自己的下一個問題</small>
               <p>{report.reflection_question}</p>
             </div>
           ) : <p className="local-note">AI 綜合解析稍後即可查看，你的測驗結果已保存。</p>}
           {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
+          {assessment.assessmentMode === 'co_present' ? <GuestSaveActions assessment={assessment} /> : null}
           <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
           <p className="disclaimer">{DISCLAIMER}</p>
         </section>
       </section>
     </main>
   );
+}
+
+function GuestSaveActions({ assessment }: { assessment: ClientAssessment }) {
+  const [claimUrl, setClaimUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  async function makeClaim() {
+    if (!assessment.subjectId) return;
+    try {
+      const { claim } = await createClaim(assessment.subjectId);
+      const url = new URL('/claim', window.location.origin);
+      url.searchParams.set('token', claim.token);
+      setClaimUrl(url.toString());
+      setStatus('這是一次性、限時的私人連結，請只傳給本人。');
+    } catch {
+      setStatus('目前無法建立私人認領連結，請稍後再試。');
+    }
+  }
+  async function saveWithLine() {
+    if (!assessment.subjectId) return;
+    try {
+      const { claim } = await createClaim(assessment.subjectId);
+      window.location.assign(`/api/auth/line/start?claimToken=${encodeURIComponent(claim.token)}`);
+    } catch {
+      setStatus('目前無法建立保存連結，請稍後再試。');
+    }
+  }
+  return <section className="guest-save-actions reflection-card">
+    <small>保存或分享</small>
+    <p>喜歡這份探索結果嗎？你可以用 LINE 保存，或傳送一次性的私人認領連結給本人。</p>
+    <button className="primary-button" type="button" onClick={() => { void saveWithLine(); }}>用 LINE 保存我的結果</button>
+    <button className="secondary-button" type="button" onClick={() => { void makeClaim(); }}>傳給本人並保存</button>
+    {claimUrl ? <p className="claim-link"><a href={claimUrl}>{claimUrl}</a></p> : null}
+    {status ? <p className="local-note">{status}</p> : null}
+    <button className="text-button" type="button" onClick={() => { window.location.assign(`/share/${encodeURIComponent(assessment.assessmentId)}`); }}>分享精華結果</button>
+    <button className="text-button" type="button" onClick={() => setStatus('你可以稍後再決定是否保存。')}>先不用</button>
+  </section>;
 }
 
 function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => void; onStart: () => void }) {

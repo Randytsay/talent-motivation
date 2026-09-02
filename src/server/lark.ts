@@ -5,6 +5,7 @@ import { normalizeRiasecScore } from '../lib/scoring/riasec';
 import type { AIReport, AssessmentRecord, EventRecord, Participant } from './contracts';
 import type { AIReportsRepository, AssessmentsRepository, EventsRepository, ParticipantsRepository, Repositories } from './repositories';
 import type { RiasecCode } from '../types/domain';
+import type { SubjectRecord } from './subject';
 
 export interface LarkFetch {
   (input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
@@ -101,6 +102,7 @@ type Tables = NonNullable<RuntimeConfig['lark']>;
  */
 export class LarkRepositories implements Repositories {
   readonly participants: ParticipantsRepository;
+  readonly subjects: Repositories['subjects'];
   readonly assessments: AssessmentsRepository;
   readonly reports: AIReportsRepository;
   readonly events: EventsRepository;
@@ -152,12 +154,19 @@ export class LarkRepositories implements Repositories {
           .sort((left, right) => date(right.fields.completed_at).localeCompare(date(left.fields.completed_at)));
         return rows[0] ? assessmentFrom(rows[0].fields) : null;
       },
+      listForSubject: async (subjectId) => {
+        const rows = (await this.client.listRecords(this.tables.assessmentsTableId))
+          .filter((item) => item.fields.subject_id === subjectId)
+          .sort((left, right) => date(right.fields.completed_at).localeCompare(date(left.fields.completed_at)));
+        return rows.map((row) => assessmentFrom(row.fields));
+      },
     };
     this.reports = {
       save: async (report) => {
         await this.client.createRecord(this.tables.aiReportsTableId, {
           report_id: report.reportId, assessment_id: report.assessmentId, repeated_signals: report.repeated_signals.join('\n'),
-          motivator_summary: report.motivator_summary, possible_tensions: report.possible_tensions.join('\n'),
+          birth_profile_summary: report.birth_profile_summary, motivator_summary: report.motivator_summary, possible_tensions: report.possible_tensions.join('\n'),
+          unused_potential: report.unused_potential,
           exploration_directions: report.exploration_directions.join('\n'), reflection_question: report.reflection_question,
           summary: report.summary, report_json: JSON.stringify(report), prompt_version: report.promptVersion,
           model_name: report.modelName, generated_at: report.generatedAt,
@@ -169,7 +178,14 @@ export class LarkRepositories implements Repositories {
         if (!row) return null;
         const serialized = asString(row.fields.report_json);
         if (!serialized) return null;
-        try { return JSON.parse(serialized) as AIReport; } catch { throw new HttpError(502, 'lark_invalid_response', 'AI 報告資料格式無效。'); }
+        try {
+          const parsed = JSON.parse(serialized) as Partial<AIReport>;
+          return {
+            ...parsed,
+            birth_profile_summary: parsed.birth_profile_summary ?? '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。',
+            unused_potential: parsed.unused_potential ?? '可以從一個小任務開始觀察天賦使用感的變化。',
+          } as AIReport;
+        } catch { throw new HttpError(502, 'lark_invalid_response', 'AI 報告資料格式無效。'); }
       },
     };
     this.events = {
@@ -183,6 +199,55 @@ export class LarkRepositories implements Repositories {
         await this.client.updateRecord(this.tables.eventsTableId, row.recordId, { current_presenter_assessment: assessmentId });
       },
     };
+    this.subjects = {
+      create: async (subject) => {
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) throw new HttpError(503, 'configuration_required', 'Subjects 資料表尚未完成設定。');
+        await this.client.createRecord(tableId, subjectFields(subject));
+        return subject;
+      },
+      findById: async (subjectId) => {
+        const rows = await this.subjectRows();
+        const row = rows.find((item) => item.fields.subject_id === subjectId);
+        return row ? subjectFrom(row.fields) : null;
+      },
+      findByClaimTokenHash: async (tokenHash) => {
+        const rows = await this.subjectRows();
+        const row = rows.find((item) => item.fields.claim_token_hash === tokenHash);
+        return row ? subjectFrom(row.fields) : null;
+      },
+      findSelfForParticipant: async (participantId) => {
+        const rows = await this.subjectRows();
+        const row = rows.find((item) => item.fields.created_by_participant_id === participantId && item.fields.subject_kind === 'self' && item.fields.archived !== true);
+        return row ? subjectFrom(row.fields) : null;
+      },
+      listForParticipant: async (participantId) => {
+        const rows = await this.subjectRows();
+        return rows.filter((item) => {
+          const fields = item.fields;
+          return fields.archived !== true && (fields.owner_participant_id === participantId ||
+            (fields.claim_status === 'unclaimed' && fields.created_by_participant_id === participantId));
+        }).map((row) => subjectFrom(row.fields));
+      },
+      update: async (subjectId, patch) => {
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) throw new HttpError(503, 'configuration_required', 'Subjects 資料表尚未完成設定。');
+        const rows = await this.subjectRows();
+        const row = rows.find((item) => item.fields.subject_id === subjectId);
+        if (!row) throw new HttpError(404, 'subject_not_found', '找不到這個探索對象。');
+        const updated = { ...subjectFrom(row.fields), ...patch, subjectId, updatedAt: patch.updatedAt ?? new Date().toISOString() };
+        await this.client.updateRecord(tableId, row.recordId, subjectFields(updated));
+        return updated;
+      },
+      setLastAssessment: async (subjectId, assessmentId) => {
+        await this.subjects.update(subjectId, { lastAssessmentId: assessmentId });
+      },
+    };
+  }
+
+  private async subjectRows(): Promise<Array<{ recordId: string; fields: Record<string, unknown> }>> {
+    if (!this.tables.subjectsTableId) return [];
+    return this.client.listRecords(this.tables.subjectsTableId);
   }
 }
 
@@ -218,6 +283,19 @@ function assessmentFields(assessment: AssessmentRecord): Record<string, unknown>
     self_energy_choice: assessment.subjectiveDriver, talent_usage_pct: assessment.talentUsage,
     priority_1: assessment.priorities[0], priority_2: assessment.priorities[1] ?? '', exploration_interest: assessment.explorationInterest,
     presenter_consent: assessment.presenterConsent, presenter_consent_at: assessment.presenterConsentAt ?? '',
+    subject_id: assessment.subjectId ?? '', created_by_participant_id: assessment.createdByParticipantId ?? assessment.participantId,
+    assessment_mode: assessment.assessmentMode ?? 'self',
+    birth_profile_json: assessment.birthProfile ? JSON.stringify(assessment.birthProfile) : '',
+    birth_signature_json: assessment.birthSignature ? JSON.stringify(assessment.birthSignature) : '',
+    birth_pyramid_main: assessment.birthProfile?.pyramid.main ?? '',
+    birth_outer_composite: assessment.birthProfile?.pyramid.outerComposite ?? '',
+    birth_inner_composite: assessment.birthProfile?.pyramid.innerComposite ?? '',
+    birth_current_stage: assessment.birthProfile?.currentStage.key ?? '',
+    birth_current_stage_number: assessment.birthProfile?.currentStage.number ?? '',
+    age_band: assessment.birthProfile?.ageBand ?? '',
+    reflection_energizing: assessment.reflections?.energizingExperience ?? '',
+    reflection_friction: assessment.reflections?.currentFriction ?? '',
+    reflection_exploration: assessment.reflections?.unconstrainedExploration ?? '',
   };
 }
 
@@ -237,17 +315,63 @@ function assessmentFrom(fields: Record<string, unknown>): AssessmentRecord {
   const participantId = asString(fields.participant_id);
   const lifePath = asNumber(fields.life_path);
   if (!assessmentId || !participantId || !lifePath || !top3.every((code) => codes.includes(code))) throw new HttpError(502, 'lark_invalid_response', '測驗資料格式無效。');
+  const birthProfile = parseJson(fields.birth_profile_json) as AssessmentRecord['birthProfile'];
+  const birthSignature = parseJson(fields.birth_signature_json) as AssessmentRecord['birthSignature'];
+  const reflections = asString(fields.reflection_energizing)
+    ? {
+      energizingExperience: asString(fields.reflection_energizing)!,
+      ...((asString(fields.reflection_friction) ?? '').trim() ? { currentFriction: asString(fields.reflection_friction) } : {}),
+      ...((asString(fields.reflection_exploration) ?? '').trim() ? { unconstrainedExploration: asString(fields.reflection_exploration) } : {}),
+    }
+    : undefined;
   return {
     assessmentId, participantId, eventId: asString(fields.event_id) || undefined,
     // Birth date belongs to the private Participants table. The result already has its deterministic life-path value.
     birthDate: '', lifePath: { value: lifePath as AssessmentRecord['lifePath']['value'], rawDigitSum: 0, reductionSteps: [] },
+    ...(asString(fields.subject_id) ? { subjectId: asString(fields.subject_id) } : {}),
+    ...(asString(fields.created_by_participant_id) ? { createdByParticipantId: asString(fields.created_by_participant_id) } : {}),
+    ...(asString(fields.assessment_mode) ? { assessmentMode: asString(fields.assessment_mode) as AssessmentRecord['assessmentMode'] } : {}),
+    ...(birthProfile ? { birthProfile } : {}), ...(birthSignature ? { birthSignature } : {}),
     lifePathResonance: asString(fields.life_path_resonance) as AssessmentRecord['lifePathResonance'],
     lifePathTopResonance: asString(fields.life_path_top_resonance) ?? '', riasecAnswers: answers,
     riasecResult: { scores, top3, top3Code: asString(fields.top3_code) ?? top3.join('') },
     subjectiveDriver: asString(fields.self_energy_choice) as RiasecCode, talentUsage: asNumber(fields.talent_usage_pct) as AssessmentRecord['talentUsage'],
     priorities: [asString(fields.priority_1), asString(fields.priority_2)].filter(Boolean) as AssessmentRecord['priorities'],
     explorationInterest: asString(fields.exploration_interest) as AssessmentRecord['explorationInterest'],
-    presenterConsent: fields.presenter_consent === true, presenterConsentAt: asString(fields.presenter_consent_at) || undefined, completedAt: date(fields.completed_at),
+    reflections, presenterConsent: fields.presenter_consent === true || fields.presenter_consent === 'true' || fields.presenter_consent === 1, presenterConsentAt: asString(fields.presenter_consent_at) || undefined, completedAt: date(fields.completed_at),
+  };
+}
+
+function parseJson(value: unknown): unknown {
+  const serialized = asString(value);
+  if (!serialized) return undefined;
+  try { return JSON.parse(serialized); } catch { return undefined; }
+}
+
+function subjectFields(subject: SubjectRecord): Record<string, unknown> {
+  return {
+    subject_id: subject.subjectId, owner_participant_id: subject.ownerParticipantId ?? '', created_by_participant_id: subject.createdByParticipantId,
+    subject_kind: subject.subjectKind, display_label: subject.displayLabel, birth_date: subject.birthDate, claim_status: subject.claimStatus,
+    claim_token_hash: subject.claimTokenHash ?? '', claim_expires_at: subject.claimExpiresAt ?? '', claimed_at: subject.claimedAt ?? '',
+    last_assessment_id: subject.lastAssessmentId ?? '', created_at: subject.createdAt, updated_at: subject.updatedAt, archived: subject.archived,
+  };
+}
+
+function subjectFrom(fields: Record<string, unknown>): SubjectRecord {
+  const subjectId = asString(fields.subject_id);
+  const createdByParticipantId = asString(fields.created_by_participant_id);
+  const subjectKind = asString(fields.subject_kind);
+  const displayLabel = asString(fields.display_label);
+  const birthDate = asString(fields.birth_date);
+  const claimStatus = asString(fields.claim_status);
+  if (!subjectId || !createdByParticipantId || !displayLabel || !birthDate || !subjectKind || !claimStatus) throw new HttpError(502, 'lark_invalid_response', '探索對象資料格式無效。');
+  if (!['self', 'guest', 'claimed'].includes(subjectKind) || !['not_applicable', 'unclaimed', 'claimed', 'expired', 'revoked'].includes(claimStatus)) throw new HttpError(502, 'lark_invalid_response', '探索對象資料格式無效。');
+  return {
+    subjectId, ...(asString(fields.owner_participant_id) ? { ownerParticipantId: asString(fields.owner_participant_id) } : {}), createdByParticipantId,
+    subjectKind: subjectKind as SubjectRecord['subjectKind'], displayLabel, birthDate, claimStatus: claimStatus as SubjectRecord['claimStatus'],
+    ...(asString(fields.claim_token_hash) ? { claimTokenHash: asString(fields.claim_token_hash) } : {}), ...(asString(fields.claim_expires_at) ? { claimExpiresAt: asString(fields.claim_expires_at) } : {}),
+    ...(asString(fields.claimed_at) ? { claimedAt: asString(fields.claimed_at) } : {}), ...(asString(fields.last_assessment_id) ? { lastAssessmentId: asString(fields.last_assessment_id) } : {}),
+    createdAt: date(fields.created_at), updatedAt: date(fields.updated_at), archived: fields.archived === true || fields.archived === 'true' || fields.archived === 1,
   };
 }
 

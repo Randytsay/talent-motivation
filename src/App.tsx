@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
+import { PresenterPage } from './components/PresenterPage';
 import { LIFE_PATH_CONTENT } from './data/lifePathContent';
 import { RIASEC_META, RIASEC_QUESTIONS } from './data/riasecQuestions';
 import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePath';
@@ -60,6 +61,11 @@ function energyLabel(code?: RiasecCode): string {
 }
 
 function App() {
+  if (window.location.pathname === '/presenter') return <PresenterPage />;
+  return <AssessmentApp />;
+}
+
+function AssessmentApp() {
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
   const completedAnswers = Object.keys(draft.riasecAnswers).length;

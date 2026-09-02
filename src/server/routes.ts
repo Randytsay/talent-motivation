@@ -1,7 +1,7 @@
 import { assessmentForClient, saveAssessment } from './assessment';
 import { generateValidatedReport } from './ai';
 import type { AssessmentRecord } from './contracts';
-import { createOAuthState, createSessionCookie, currentIdentity, identityProviderFor, readSession, verifyOAuthState } from './identity';
+import { clearOAuthStateCookie, createOAuthState, createSessionCookie, currentIdentity, identityProviderFor, readSession, verifyOAuthState } from './identity';
 import { HttpError, json, readJsonObject, requireMethod } from './http';
 import { currentPresenterPayload } from './presenter';
 import { createRuntime, type RuntimeServices } from './runtime';
@@ -39,14 +39,13 @@ export function createRouteHandlers(services: RuntimeServices = createRuntime())
       if (!code) throw new HttpError(400, 'missing_authorization_code', '缺少 LINE authorization code。');
       const identity = await identityProviderFor(services.config).exchangeCode(code);
       await services.repositories.participants.upsertIdentity(identity);
-      return new Response(null, {
-        status: 302,
-        headers: {
-          location: new URL('/', services.config.appBaseUrl).toString(),
-          'set-cookie': createSessionCookie(identity, services.config),
-          'cache-control': 'no-store',
-        },
+      const headers = new Headers({
+        location: new URL('/', services.config.appBaseUrl).toString(),
+        'cache-control': 'no-store',
       });
+      headers.append('set-cookie', createSessionCookie(identity, services.config));
+      headers.append('set-cookie', clearOAuthStateCookie(services.config));
+      return new Response(null, { status: 302, headers });
     },
     createAssessment: async (request: Request) => {
       requireMethod(request, 'POST');

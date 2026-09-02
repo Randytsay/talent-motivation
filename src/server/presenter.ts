@@ -26,9 +26,9 @@ export async function currentPresenterPayload(eventId: string, repositories: Rep
   const event = await repositories.events.findById(eventId);
   if (!event || event.status !== 'active' || !event.currentPresenterAssessmentId) return null;
   const assessment = await repositories.assessments.findById(event.currentPresenterAssessmentId);
-  if (!assessment || !assessment.presenterConsent) return null;
+  if (!assessment || !assessment.presenterConsent || assessment.eventId !== event.eventId) return null;
   const report = await repositories.reports.findByAssessmentId(assessment.assessmentId);
-  // Resolve the participant only through the bound assessment; no cross-event browsing is possible here.
+  // Resolve the participant only through the assessment explicitly bound to this event.
   const participant = await repositories.participants.findByParticipantId(assessment.participantId);
   if (!participant) throw new HttpError(404, 'participant_not_found', '找不到分享資料。');
   return presenterAllowlist({ displayName: participant.displayName, assessment, repeatedSignals: report?.repeated_signals });

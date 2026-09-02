@@ -3,6 +3,11 @@ import { HttpError } from './http';
 type Environment = Record<string, string | undefined>;
 type RuntimeMode = 'mock' | 'preview' | 'live';
 
+export type AIConfig =
+  | { provider: 'gemini'; apiKey: string; model: string }
+  | { provider: 'vertex'; projectId: string; location: string; serviceAccountJson: string; model: string }
+  | { provider: 'minimax'; apiKey: string; baseUrl: string; model: string };
+
 export interface RuntimeConfig {
   deployment: 'production' | 'preview' | 'development';
   isProduction: boolean;
@@ -22,7 +27,7 @@ export interface RuntimeConfig {
     aiReportsTableId: string;
     eventsTableId: string;
   };
-  ai?: { provider: string; apiKey: string; model: string };
+  ai?: AIConfig;
 }
 
 export class EnvironmentError extends Error {
@@ -48,6 +53,42 @@ function readGroup<T extends Record<string, string>>(environment: Environment, m
   ) as T;
 }
 
+function readAIConfig(environment: Environment): AIConfig | undefined {
+  const provider = environment.LLM_PROVIDER;
+  if (!provider || provider === 'mock') return undefined;
+
+  if (provider === 'gemini') {
+    const missing = required(environment, ['LLM_API_KEY', 'LLM_MODEL']);
+    if (missing.length) throw new EnvironmentError(`Incomplete runtime configuration: ${missing.join(', ')}`);
+    return { provider, apiKey: environment.LLM_API_KEY!, model: environment.LLM_MODEL! };
+  }
+
+  if (provider === 'vertex') {
+    const missing = required(environment, ['LLM_MODEL', 'VERTEX_PROJECT_ID', 'VERTEX_LOCATION', 'VERTEX_SERVICE_ACCOUNT_JSON']);
+    if (missing.length) throw new EnvironmentError(`Incomplete runtime configuration: ${missing.join(', ')}`);
+    return {
+      provider,
+      model: environment.LLM_MODEL!,
+      projectId: environment.VERTEX_PROJECT_ID!,
+      location: environment.VERTEX_LOCATION!,
+      serviceAccountJson: environment.VERTEX_SERVICE_ACCOUNT_JSON!,
+    };
+  }
+
+  if (provider === 'minimax') {
+    const missing = required(environment, ['LLM_MODEL', 'MINIMAX_API_KEY']);
+    if (missing.length) throw new EnvironmentError(`Incomplete runtime configuration: ${missing.join(', ')}`);
+    return {
+      provider,
+      model: environment.LLM_MODEL!,
+      apiKey: environment.MINIMAX_API_KEY!,
+      baseUrl: environment.MINIMAX_BASE_URL ?? 'https://api.minimaxi.com/v1',
+    };
+  }
+
+  throw new EnvironmentError('LLM_PROVIDER must be gemini, vertex, minimax, or mock.');
+}
+
 /**
  * This module is imported only by Vercel Functions. It intentionally never
  * reads `VITE_*` secrets or passes a configuration object to browser code.
@@ -55,7 +96,7 @@ function readGroup<T extends Record<string, string>>(environment: Environment, m
  * APP_RUNTIME_MODE values:
  * - mock: mock identity + process-local memory + mock AI (local/CI only)
  * - preview: mock identity + Lark persistence + mock AI (Vercel Preview QA)
- * - live: LINE identity + Lark persistence + real Gemini AI
+ * - live: LINE identity + Lark persistence + selected real AI provider
  */
 export function loadRuntimeConfig(environment: Environment = process.env): RuntimeConfig {
   const deployment = environment.VERCEL_ENV === 'production'
@@ -92,18 +133,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
     aiReportsTableId: 'LARK_AI_REPORTS_TABLE_ID',
     eventsTableId: 'LARK_EVENTS_TABLE_ID',
   });
-  const requestedProvider = environment.LLM_PROVIDER;
-  const ai = requestedProvider && requestedProvider !== 'mock'
-    ? readGroup<{ provider: string; apiKey: string; model: string }>(environment, {
-        provider: 'LLM_PROVIDER',
-        apiKey: 'LLM_API_KEY',
-        model: 'LLM_MODEL',
-      })
-    : undefined;
-
-  if (ai && ai.provider !== 'gemini') {
-    throw new EnvironmentError('Only LLM_PROVIDER=gemini is supported by this runtime.');
-  }
+  const ai = readAIConfig(environment);
 
   const defaultDevelopmentMock = deployment === 'development' && !line && !lark && !ai;
   const isMemoryMock = runtimeMode === 'mock' || defaultDevelopmentMock;
@@ -117,7 +147,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
     throw new EnvironmentError('Preview requires APP_RUNTIME_MODE=mock, APP_RUNTIME_MODE=preview with Lark, or complete live runtime configuration.');
   }
   if (isProduction && (!line || !lark || !ai || !sessionSecret || !environment.APP_BASE_URL)) {
-    throw new EnvironmentError('Production requires complete LINE, Lark, Gemini, session, and APP_BASE_URL configuration.');
+    throw new EnvironmentError('Production requires complete LINE, Lark, AI provider, session, and APP_BASE_URL configuration.');
   }
   if (!isMemoryMock && !isPersistentPreview && !sessionSecret) {
     throw new EnvironmentError('SESSION_SECRET is required for live runtime mode.');

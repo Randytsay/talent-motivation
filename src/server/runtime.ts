@@ -1,4 +1,4 @@
-import { GeminiAIProvider, MockAIProvider, type AIProvider } from './ai';
+import { GeminiAIProvider, MiniMaxAIProvider, MockAIProvider, VertexAIProvider, type AIProvider } from './ai';
 import { loadRuntimeConfig, type RuntimeConfig } from './env';
 import type { Repositories } from './repositories';
 import { InMemoryRepositories } from './repositories';
@@ -57,11 +57,13 @@ const larkInternationalFetch: LarkFetch = async (input, init) => {
   return response;
 };
 
-/** Composition root used by functions. The mock repository is process-local by design. */
+/** Composition root used by functions. The selected live provider stays server-only. */
 function aiProviderFor(config: RuntimeConfig): AIProvider {
   if (config.aiMode === 'mock') return new MockAIProvider();
   if (config.ai?.provider === 'gemini') return new GeminiAIProvider(config.ai);
-  throw new Error('Real AI runtime requires a configured Gemini provider.');
+  if (config.ai?.provider === 'vertex') return new VertexAIProvider(config.ai);
+  if (config.ai?.provider === 'minimax') return new MiniMaxAIProvider(config.ai);
+  throw new Error('Real AI runtime requires a configured AI provider.');
 }
 
 export function createRuntime(config = loadRuntimeConfig(), repositories?: Repositories, aiProvider: AIProvider = aiProviderFor(config)): RuntimeServices {

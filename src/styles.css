@@ -206,6 +206,12 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .priority-grid .choice-button { min-height: 57px; }
 .exploration-block { margin-top: 42px; padding-top: 27px; border-top: 1px solid var(--line); }
 .exploration-block .field-label { max-width: 700px; margin-top: 0; color: var(--ink); font-size: 15px; line-height: 1.7; }
+.presenter-consent { margin: 32px 0 0; padding: 24px 25px; border: 1px solid var(--gold-soft); border-radius: 14px; background: #fffaf1; }
+.presenter-consent legend { max-width: 680px; padding: 0; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.7; }
+.presenter-consent p { margin: 16px 0 0; color: #4d5663; font-size: 14px; line-height: 1.7; }
+.presenter-consent ul, .privacy-list { margin: 10px 0 0; padding-left: 1.3em; color: #4d5663; font-size: 14px; line-height: 1.75; }
+.presenter-consent__choice { display: flex; align-items: flex-start; gap: 11px; margin-top: 20px; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.55; cursor: pointer; }
+.presenter-consent__choice input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--ink); flex: 0 0 auto; }
 
 .report-panel { width: min(920px, 100%); margin: 0 auto; border-color: #d6ccb9; box-shadow: var(--shadow-lift); }
 .report-panel > .eyebrow { color: var(--gold-deep); }

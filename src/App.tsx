@@ -3,10 +3,13 @@ import type { CSSProperties } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
+import { PresenterPage } from './components/PresenterPage';
 import { LIFE_PATH_CONTENT } from './data/lifePathContent';
 import { RIASEC_META, RIASEC_QUESTIONS } from './data/riasecQuestions';
 import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePath';
 import { scoreRiasec } from './lib/scoring/riasec';
+import { ApiError, createAssessment, generateReport, getLatestAssessment, getReport, type ClientAssessment } from './lib/api/client';
+import { useAuthBootstrap, type AuthState } from './lib/api/authBootstrap';
 import { localAssessmentDraftRepository } from './lib/storage/assessmentRepository';
 import type {
   AssessmentDraft,
@@ -17,6 +20,7 @@ import type {
   RiasecCode,
   TalentUsage,
 } from './types/domain';
+import type { AIReport, AssessmentInput } from './server/contracts';
 
 const DISCLAIMER = '生命靈數是一種自我反思工具，結果不代表命定的人格或人生。';
 const SCALE: Array<{ value: RiasecAnswer; label: string }> = [
@@ -60,8 +64,19 @@ function energyLabel(code?: RiasecCode): string {
 }
 
 function App() {
+  if (window.location.pathname === '/presenter') return <PresenterPage />;
+  return <AssessmentApp />;
+}
+
+function AssessmentApp() {
+  const auth = useAuthBootstrap();
+  const eventId = new URLSearchParams(window.location.search).get('eventId');
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
+  const [completedAssessment, setCompletedAssessment] = useState<ClientAssessment | null>(null);
+  const [serverReport, setServerReport] = useState<AIReport | null>(null);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const completedAnswers = Object.keys(draft.riasecAnswers).length;
   const riasecResult = useMemo(() => {
     if (completedAnswers !== RIASEC_QUESTIONS.length) return null;
@@ -70,8 +85,31 @@ function App() {
   const lifePathContent = draft.lifePath ? LIFE_PATH_CONTENT[draft.lifePath.value] : null;
 
   useEffect(() => {
-    localAssessmentDraftRepository.save(draft);
-  }, [draft]);
+    if (!completedAssessment) localAssessmentDraftRepository.save(draft);
+  }, [draft, completedAssessment]);
+
+  useEffect(() => {
+    if (auth.status !== 'authenticated' && auth.status !== 'mock') return;
+    let active = true;
+    async function restoreCompletedAssessment() {
+      try {
+        const { assessment } = await getLatestAssessment();
+        if (!assessment || !active) return;
+        setCompletedAssessment(assessment);
+        localAssessmentDraftRepository.clear();
+        try {
+          const { report } = await getReport(assessment.assessmentId);
+          if (active) setServerReport(report);
+        } catch {
+          // A deterministic report can render even while AI generation is pending.
+        }
+      } catch {
+        if (active) setPersistenceError('暫時無法讀取已保存的結果；未完成的本機草稿仍可繼續。');
+      }
+    }
+    void restoreCompletedAssessment();
+    return () => { active = false; };
+  }, [auth.status]);
 
   function patchDraft(update: Partial<AssessmentDraft>) {
     setDraft((current) => ({ ...current, ...update }));
@@ -79,12 +117,18 @@ function App() {
 
   function startNew() {
     setDateError(null);
+    setPersistenceError(null);
+    setServerReport(null);
+    setCompletedAssessment(null);
     setDraft({ ...createEmptyDraft(), step: 'consent' });
   }
 
   function returnHome() {
     localAssessmentDraftRepository.clear();
     setDateError(null);
+    setPersistenceError(null);
+    setServerReport(null);
+    setCompletedAssessment(null);
     setDraft(createEmptyDraft());
   }
 
@@ -116,6 +160,51 @@ function App() {
     });
   }
 
+  async function completeAssessment() {
+    if (!draft.lifePath || !riasecResult || !draft.lifePathResonance || !draft.lifePathTopResonance || !draft.subjectiveDriver || !draft.talentUsage || !draft.explorationInterest) return;
+    if (auth.status === 'unauthenticated') {
+      setPersistenceError('請先使用 LINE 登入，才能安全保存這次探索結果。');
+      return;
+    }
+    if (auth.status === 'loading') return;
+    if (auth.status === 'unavailable') {
+      setPersistenceError('目前無法連線到資料服務；結果會暫存在這個瀏覽器，你可以稍後再試。');
+      patchDraft({ step: 'report' });
+      return;
+    }
+
+    setIsSaving(true);
+    setPersistenceError(null);
+    try {
+      const { assessment } = await createAssessment({
+        birthDate: draft.birthDate,
+        lifePath: draft.lifePath,
+        lifePathResonance: draft.lifePathResonance,
+        lifePathTopResonance: draft.lifePathTopResonance,
+        riasecAnswers: draft.riasecAnswers,
+        riasecResult,
+        subjectiveDriver: draft.subjectiveDriver,
+        talentUsage: draft.talentUsage,
+        priorities: draft.priorities,
+        explorationInterest: draft.explorationInterest,
+        ...(eventId ? { eventId, presenterConsent: draft.presenterConsent === true } : {}),
+      } satisfies AssessmentInput);
+      setCompletedAssessment(assessment);
+      localAssessmentDraftRepository.clear();
+      try {
+        const { report } = await generateReport(assessment.assessmentId);
+        setServerReport(report);
+      } catch (error) {
+        setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析稍後即可查看，你的測驗結果已保存。');
+      }
+    } catch (error) {
+      setPersistenceError(error instanceof ApiError ? error.message : '暫時無法保存結果；你的本機草稿會保留。');
+      patchDraft({ step: 'report' });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const subjectiveComparison = useMemo(() => {
     if (!riasecResult || !draft.subjectiveDriver) return null;
     const top1 = riasecResult.top3[0];
@@ -132,27 +221,36 @@ function App() {
     };
   }, [draft.subjectiveDriver, riasecResult]);
 
+  if (completedAssessment) {
+    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} onRestart={returnHome} />;
+  }
+
   return (
     <main className="site-shell">
       {draft.step !== 'landing' && draft.step !== 'report' ? (
         <ProgressHeader step={draft.step} onHome={returnHome} />
       ) : null}
       <section className="journey" aria-live="polite">
-        {draft.step === 'landing' ? <Landing onStart={startNew} /> : null}
+        {draft.step === 'landing' ? <Landing auth={auth} onLogin={() => { window.location.assign('/api/auth/line/start'); }} onStart={startNew} /> : null}
 
         {draft.step === 'consent' ? (
           <section className="panel panel--narrow entrance">
-            <p className="eyebrow">開始前 · 本機預演說明</p>
-            <h1>先說明這次資料怎麼使用</h1>
+            <p className="eyebrow">開始前 · 資料使用說明</p>
+            <h1>開始前，先說明資料怎麼使用</h1>
             <p className="lede">
-              目前是 P0 本機預演版，尚未連接 LINE、Lark Base 或雲端資料庫。你的出生日期、作答與結果只會暫存在這個瀏覽器，方便刷新後繼續。
+              未完成的作答草稿只保存在目前瀏覽器，方便你中途刷新後繼續。使用 LINE 登入後，完成的探索結果會保存到系統，以便之後再次查看。
             </p>
             <div className="reflection-card" style={{ marginTop: 28 }}>
-              <small>目前不會做的事</small>
-              <p>不會建立 LINE 身分、不會上傳雲端，也不會把結果公開給其他人。正式版上線前會另外提供完整隱私告知與同意流程。</p>
+              <small>資料使用與分享範圍</small>
+              <ul className="privacy-list">
+                <li>出生日期只用來計算 Life Path 與保存本次探索紀錄。</li>
+                <li>AI 綜合解析只接收已計算完成的 Life Path、RIASEC、主觀回饋與選擇；不傳送完整出生日期與 18 題原始答案。</li>
+                <li>測驗結果不會自動公開。Presenter 分享必須另外取得本次活動的明確同意。</li>
+                <li>Presenter 不顯示完整出生日期、探索意願或其他未授權私人資料。</li>
+              </ul>
             </div>
             <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'birthday' })}>
-              我了解，繼續本機探索
+              我了解，開始探索
             </button>
           </section>
         ) : null}
@@ -360,14 +458,38 @@ function App() {
                 ))}
               </div>
             </div>
+            {eventId ? (
+              <fieldset className="presenter-consent">
+                <legend>是否願意讓講師在本次活動中，將以下探索摘要顯示在 Presenter 畫面？</legend>
+                <p>只會顯示：</p>
+                <ul>
+                  <li>LINE 顯示名稱</li>
+                  <li>Life Path</li>
+                  <li>RIASEC 六向度與 Top3</li>
+                  <li>主觀能量線索</li>
+                  <li>天賦使用感</li>
+                  <li>經允許的 AI 重複線索</li>
+                </ul>
+                <p>不會顯示完整出生日期、原始 18 題答案、探索意願或其他私人資料。</p>
+                <label className="presenter-consent__choice">
+                  <input
+                    type="checkbox"
+                    checked={draft.presenterConsent === true}
+                    onChange={(event) => patchDraft({ presenterConsent: event.target.checked })}
+                  />
+                  <span>我同意本次活動顯示上述摘要</span>
+                </label>
+              </fieldset>
+            ) : null}
             <button
               className="primary-button"
               disabled={draft.priorities.length === 0 || !draft.explorationInterest}
               type="button"
-              onClick={() => patchDraft({ step: 'report' })}
+              onClick={() => { void completeAssessment(); }}
             >
-              整理我的三面鏡子
+              {isSaving ? '正在安全保存…' : '整理我的三面鏡子'}
             </button>
+            {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           </section>
         ) : null}
 
@@ -387,7 +509,7 @@ function App() {
               <div className="reflection-card"><small>{subjectiveComparison.title}</small><p>{subjectiveComparison.text}</p></div>
             ) : null}
             <div className="reflection-card"><small>留給自己的問題</small><p>{lifePathContent.reflectionQuestion}</p></div>
-            <p className="local-note">這是 P0 本地預演：結果只暫存在這個瀏覽器，刷新仍可查看；按「重新開始一輪」後會清除本機紀錄。</p>
+            <p className="local-note">目前結果暫存在這個瀏覽器，方便刷新後繼續查看；按「重新開始一輪」後會清除未完成的本機紀錄。</p>
             <button className="secondary-button" type="button" onClick={returnHome}>重新開始一輪</button>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
@@ -397,14 +519,72 @@ function App() {
   );
 }
 
-function Landing({ onStart }: { onStart: () => void }) {
+function ServerReport({
+  assessment,
+  report,
+  persistenceError,
+  onRestart,
+}: {
+  assessment: ClientAssessment;
+  report: AIReport | null;
+  persistenceError: string | null;
+  onRestart: () => void;
+}) {
+  const lifePathContent = LIFE_PATH_CONTENT[assessment.lifePath.value];
+  const top1 = assessment.riasecResult.top3[0];
+  const energyComparison = assessment.subjectiveDriver === top1
+    ? '兩個角度出現相同線索'
+    : '兩個角度照到不同線索';
+
+  return (
+    <main className="site-shell">
+      <section className="journey" aria-live="polite">
+        <section className="panel report-panel entrance">
+          <p className="eyebrow">你的探索摘要</p>
+          <h1>把三面鏡子放在一起看</h1>
+          <p className="lede">這裡呈現的是已保存的回答與伺服器重新驗證的計算結果；它們可以成為你接下來觀察自己的線索。</p>
+          <div className="report-grid">
+            <article><small>第一面鏡子 · 自我反思</small><strong>{assessment.lifePath.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
+            <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{assessment.riasecResult.top3Code}</strong><p>{assessment.riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
+            <article><small>本人能量線索</small><strong>{energyLabel(assessment.subjectiveDriver)}</strong><p>{energyComparison}</p></article>
+            <article><small>第三面鏡子 · 天賦使用感</small><strong>{assessment.talentUsage}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
+            <article><small>目前最關注</small><strong>{assessment.priorities.join('、')}</strong><p>探索意願：{assessment.explorationInterest}</p></article>
+          </div>
+          <div className="results-layout" style={{ marginTop: 32 }}>
+            <RadarChart scores={assessment.riasecResult.scores} />
+            <div className="reflection-card"><small>{energyComparison}</small><p>你的主觀能量線索與活動偏好都是值得繼續觀察的資料，不需要判斷哪一個更正確。</p></div>
+          </div>
+          {report ? (
+            <div className="reflection-card" style={{ marginTop: 26 }}>
+              <small>重複出現的線索</small>
+              <p>{report.repeated_signals.join(' ')}</p>
+              <small>可能的原動力</small>
+              <p>{report.motivator_summary}</p>
+              <small>給自己的下一個問題</small>
+              <p>{report.reflection_question}</p>
+            </div>
+          ) : <p className="local-note">AI 綜合解析稍後即可查看，你的測驗結果已保存。</p>}
+          {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
+          <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
+          <p className="disclaimer">{DISCLAIMER}</p>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => void; onStart: () => void }) {
+  const needsLogin = auth.status === 'unauthenticated';
   return (
     <section className="landing entrance">
       <div className="landing-copy">
         <p className="eyebrow">三面鏡子，不替你下定義</p>
         <h1>看見天賦，<br /><em>找到原動力。</em></h1>
         <p className="landing-lede">看見天賦・找到原動力・增加人生的選擇。從一個自我反思入口、一組活動偏好，和你此刻的感受開始。</p>
-        <button className="primary-button" type="button" onClick={onStart}>開始探索我的天賦</button>
+        <button className="primary-button" disabled={auth.status === 'loading'} type="button" onClick={needsLogin ? onLogin : onStart}>
+          {auth.status === 'loading' ? '正在確認身份…' : needsLogin ? '使用 LINE 登入後開始探索' : '開始探索我的天賦'}
+        </button>
+        {auth.status === 'unavailable' ? <p className="disclaimer">目前以本機草稿模式進行；連線恢復後即可安全保存結果。</p> : null}
         <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
       </div>
       <div className="mirror-composition" aria-hidden="true">

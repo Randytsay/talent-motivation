@@ -80,4 +80,6 @@ export interface AssessmentDraft {
   talentUsage?: TalentUsage;
   priorities: Priority[];
   explorationInterest?: ExplorationInterest;
+  /** Explicit, event-scoped Presenter choice; absent means no consent. */
+  presenterConsent?: boolean;
 }

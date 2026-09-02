@@ -1,36 +1,23 @@
-export interface LiffClientIdentity {
-  lineUserId: string;
-  displayName: string;
-  pictureUrl?: string;
-  mode: 'mock' | 'liff';
-}
-
-interface BrowserLiff {
-  init(options: { liffId: string }): Promise<void>;
-  isLoggedIn(): boolean;
-  login(): void;
-  getProfile(): Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
-}
-
-declare global {
-  interface Window { liff?: BrowserLiff }
-}
+import liff from '@line/liff';
 
 /**
- * The browser gets only a public LIFF id. In local development this produces
- * a deterministic identity so the same mock participant can be exercised.
+ * Returns only an ID token for server verification. The browser must never
+ * promote decoded profile data or a client-side user ID into app identity.
  */
-export async function getLiffClientIdentity(): Promise<LiffClientIdentity> {
+export async function getLiffIdToken(): Promise<string | null> {
   const liffId = import.meta.env.VITE_LIFF_ID;
-  if (!liffId || !window.liff) {
-    return { lineUserId: 'mock-line-user-001', displayName: 'Mock LINE User', mode: 'mock' };
+  if (!liffId) return null;
+
+  await liff.init({ liffId });
+  // Desktop keeps the normal LINE Login redirect flow. LIFF token exchange is
+  // reserved for the LINE in-app browser where LIFF is the identity source.
+  if (!liff.isInClient()) return null;
+  if (!liff.isLoggedIn()) {
+    liff.login();
+    return null;
   }
 
-  await window.liff.init({ liffId });
-  if (!window.liff.isLoggedIn()) {
-    window.liff.login();
-    throw new Error('Redirecting to LINE Login.');
-  }
-  const profile = await window.liff.getProfile();
-  return { ...profile, lineUserId: profile.userId, mode: 'liff' };
+  const idToken = liff.getIDToken();
+  if (!idToken) throw new Error('LIFF did not provide an ID token.');
+  return idToken;
 }

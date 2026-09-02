@@ -1,4 +1,4 @@
-import { toErrorResponse } from '../src/server/http';
+import { vercelWebHandler } from '../src/server/http';
 import { createRouteHandlers } from '../src/server/routes';
 
-export default toErrorResponse(createRouteHandlers().health);
+export default vercelWebHandler(createRouteHandlers().health);

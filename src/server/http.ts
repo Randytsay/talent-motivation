@@ -53,3 +53,8 @@ export function toErrorResponse(handler: (request: Request) => Promise<Response>
     }
   };
 }
+
+/** Current Vercel Node.js Web Standard Function shape. */
+export function vercelWebHandler(handler: (request: Request) => Promise<Response>): { fetch: (request: Request) => Promise<Response> } {
+  return { fetch: toErrorResponse(handler) };
+}

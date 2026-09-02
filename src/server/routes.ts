@@ -1,7 +1,7 @@
 import { assessmentForClient, saveAssessment } from './assessment';
 import { generateValidatedReport } from './ai';
 import type { AssessmentRecord } from './contracts';
-import { clearOAuthStateCookie, createOAuthState, createSessionCookie, currentIdentity, identityProviderFor, readSession, verifyOAuthState } from './identity';
+import { clearOAuthStateCookie, createOAuthState, createSessionCookie, currentIdentity, identityProviderFor, liffIdentityVerifierFor, readSession, verifyOAuthState } from './identity';
 import { HttpError, json, readJsonObject, requireMethod } from './http';
 import { currentPresenterPayload } from './presenter';
 import { createRuntime, type RuntimeServices } from './runtime';
@@ -46,6 +46,16 @@ export function createRouteHandlers(services: RuntimeServices = createRuntime())
       headers.append('set-cookie', createSessionCookie(identity, services.config));
       headers.append('set-cookie', clearOAuthStateCookie(services.config));
       return new Response(null, { status: 302, headers });
+    },
+    liffAuthenticate: async (request: Request) => {
+      requireMethod(request, 'POST');
+      const payload = await readJsonObject(request);
+      if (typeof payload.idToken !== 'string' || !payload.idToken.trim()) {
+        throw new HttpError(400, 'invalid_liff_token', '缺少 LIFF ID token。');
+      }
+      const identity = await liffIdentityVerifierFor(services.config).verifyIdToken(payload.idToken);
+      await services.repositories.participants.upsertIdentity(identity);
+      return json({ authenticated: true, identity }, 200, { 'set-cookie': createSessionCookie(identity, services.config) });
     },
     createAssessment: async (request: Request) => {
       requireMethod(request, 'POST');

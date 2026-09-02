@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { generateValidatedReport, MockAIProvider, validateAIReport } from './ai';
+import { GeminiAIProvider, generateValidatedReport, MockAIProvider, validateAIReport } from './ai';
 import { assessmentForClient, saveAssessment, validateAssessment } from './assessment';
 import type { AssessmentRecord, Identity } from './contracts';
 import { loadRuntimeConfig } from './env';
-import { createOAuthState, createSessionCookie, currentIdentity, readSession, verifyOAuthState } from './identity';
+import { createOAuthState, createSessionCookie, currentIdentity, LineLiffIdentityVerifier, readSession, verifyOAuthState } from './identity';
 import { LarkOpenApiClient } from './lark';
 import { currentPresenterPayload } from './presenter';
 import { InMemoryRepositories } from './repositories';
 import { createRouteHandlers } from './routes';
 import { createRuntime } from './runtime';
+import healthFunction from '../../api/health';
 
 const identity: Identity = { lineUserId: 'mock-line-user-001', displayName: 'Mock LINE User' };
 const answers = Object.fromEntries(Array.from({ length: 18 }, (_, index) => [`q${String(index + 1).padStart(2, '0')}`, 4]));
@@ -31,9 +32,28 @@ function testConfig() {
   return loadRuntimeConfig({ NODE_ENV: 'test', SESSION_SECRET: 'test-secret', APP_BASE_URL: 'http://localhost:5173' });
 }
 
+function liveConfig() {
+  return loadRuntimeConfig({
+    NODE_ENV: 'test', APP_RUNTIME_MODE: 'live', SESSION_SECRET: 'test-secret', APP_BASE_URL: 'http://localhost:5173',
+    LINE_LOGIN_CHANNEL_ID: 'line-channel', LINE_LOGIN_CHANNEL_SECRET: 'line-secret',
+    LARK_APP_ID: 'lark-app', LARK_APP_SECRET: 'lark-secret', LARK_BASE_APP_TOKEN: 'base',
+    LARK_PARTICIPANTS_TABLE_ID: 'participants', LARK_ASSESSMENTS_TABLE_ID: 'assessments', LARK_AI_REPORTS_TABLE_ID: 'reports', LARK_EVENTS_TABLE_ID: 'events',
+    LLM_PROVIDER: 'gemini', LLM_API_KEY: 'gemini-key', LLM_MODEL: 'gemini-test-model',
+  });
+}
+
 describe('P1 server runtime', () => {
+  it('exports Vercel Web Standard fetch handlers', async () => {
+    expect(healthFunction).toHaveProperty('fetch');
+    const response = await healthFunction.fetch(new Request('http://localhost/api/health'));
+    await expect(response.json()).resolves.toMatchObject({ ok: true, service: 'talent-motivation' });
+  });
+
   it('fails closed when production session configuration is missing', () => {
-    expect(() => loadRuntimeConfig({ NODE_ENV: 'production' })).toThrow('SESSION_SECRET');
+    expect(() => loadRuntimeConfig({ NODE_ENV: 'production', VERCEL_ENV: 'production' })).toThrow('SESSION_SECRET');
+    expect(() => loadRuntimeConfig({ VERCEL_ENV: 'production', APP_RUNTIME_MODE: 'mock' })).toThrow('cannot use mock');
+    expect(() => loadRuntimeConfig({ VERCEL_ENV: 'preview' })).toThrow('APP_RUNTIME_MODE=mock');
+    expect(loadRuntimeConfig({ VERCEL_ENV: 'preview', APP_RUNTIME_MODE: 'mock' }).isMockMode).toBe(true);
     expect(() => loadRuntimeConfig({ NODE_ENV: 'test', LINE_LOGIN_CHANNEL_ID: 'only-one' })).toThrow('Incomplete runtime configuration');
   });
 
@@ -57,6 +77,24 @@ describe('P1 server runtime', () => {
   it('uses one deterministic mock LINE identity without a session', () => {
     const mock = currentIdentity(new Request('http://localhost'), testConfig());
     expect(mock).toEqual(identity);
+  });
+
+  it('verifies a LIFF ID token server-side and maps only its LINE sub to identity', async () => {
+    const verifier = new LineLiffIdentityVerifier(liveConfig().line!, async (_url, init) => {
+      expect(String(init?.body)).toContain('client_id=line-channel');
+      return new Response(JSON.stringify({
+        iss: 'https://access.line.me', aud: 'line-channel', sub: 'verified-line-user', exp: Math.floor(Date.now() / 1000) + 60,
+        name: 'Verified User', picture: 'https://example.test/profile.png',
+      }));
+    });
+    await expect(verifier.verifyIdToken('untrusted-browser-token')).resolves.toEqual({
+      lineUserId: 'verified-line-user', displayName: 'Verified User', pictureUrl: 'https://example.test/profile.png',
+    });
+
+    const wrongAudience = new LineLiffIdentityVerifier(liveConfig().line!, async () => new Response(JSON.stringify({
+      iss: 'https://access.line.me', aud: 'another-channel', sub: 'wrong', exp: Math.floor(Date.now() / 1000) + 60,
+    })));
+    await expect(wrongAudience.verifyIdToken('token')).rejects.toMatchObject({ code: 'liff_token_invalid' });
   });
 
   it('completes mock OAuth callback and establishes a secure session cookie', async () => {
@@ -120,6 +158,29 @@ describe('P1 server runtime', () => {
     const repositories = new InMemoryRepositories();
     const { assessment } = await saveAssessment(payload(), identity, repositories);
     await expect(generateValidatedReport(assessment, new MockAIProvider())).resolves.toMatchObject({ assessmentId: assessment.assessmentId, repeated_signals: expect.any(Array) });
+  });
+
+  it('uses Gemini only with server-side facts and validates its structured output', async () => {
+    const repositories = new InMemoryRepositories();
+    const { assessment } = await saveAssessment(payload(), identity, repositories);
+    let sentBody = '';
+    const provider = new GeminiAIProvider({ apiKey: 'secret', model: 'gemini-test-model' }, async (_url, init) => {
+      sentBody = String(init?.body);
+      expect(new Headers(init?.headers).get('x-goog-api-key')).toBe('secret');
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+        repeated_signals: ['結果中反覆出現的投入線索值得留意。'],
+        motivator_summary: '這可能反映你重視理解與探索。',
+        possible_tensions: ['不同線索可以一起觀察。'],
+        exploration_directions: ['先從現職調整一個小任務開始。'],
+        reflection_question: '哪個情境最讓你有精神？',
+        summary: '這是一份探索摘要，不是人格定論。',
+      }) }] } }] }));
+    });
+    const report = await generateValidatedReport(assessment, provider);
+    expect(report.modelName).toBe('gemini:gemini-test-model');
+    expect(sentBody).not.toContain('1978-11-05');
+    expect(sentBody).not.toContain('riasecAnswers');
+    expect(createRuntime(liveConfig(), repositories).aiProvider).toBeInstanceOf(GeminiAIProvider);
   });
 
   it('returns only allowlisted, consented Presenter fields', async () => {

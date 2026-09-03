@@ -13,27 +13,41 @@ function activePhase(step: AssessmentStep): number {
 interface ProgressHeaderProps {
   step: AssessmentStep;
   onHome: () => void;
+  onBack?: () => void;
+  canBack?: boolean;
 }
 
-export function ProgressHeader({ step, onHome }: ProgressHeaderProps) {
+export function ProgressHeader({ step, onHome, onBack, canBack }: ProgressHeaderProps) {
   const current = activePhase(step);
 
   return (
     <header className="app-header">
-      <button
-        className="brand"
-        type="button"
-        aria-label="放棄這次探索並回到天賦原動力首頁"
-        onClick={onHome}
-        style={{ border: 0, background: 'transparent', padding: 0 }}
-      >
-        <span className="brand-mark" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span>天賦原動力</span>
-      </button>
+      <div className="header-nav">
+        {canBack && onBack ? (
+          <button
+            className="back-button"
+            type="button"
+            onClick={onBack}
+            aria-label="回上一步"
+          >
+            ← 上一步
+          </button>
+        ) : null}
+        <button
+          className="brand"
+          type="button"
+          aria-label="放棄這次探索並回到天賦原動力首頁"
+          onClick={onHome}
+          style={{ border: 0, background: 'transparent', padding: 0 }}
+        >
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>天賦原動力</span>
+        </button>
+      </div>
       <ol className="phase-track" aria-label="探索進度">
         {PHASES.map((phase, index) => (
           <li className={index <= current ? 'phase--active' : ''} key={phase.name}>

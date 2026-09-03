@@ -5,7 +5,9 @@ dist/
 .env
 .env.local
 .env.*.local
+.vercel/
 videos/
 /icons/
 /og.*
+
 

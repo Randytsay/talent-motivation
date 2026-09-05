@@ -101,7 +101,7 @@ async function vertexToken(serializedCredentials: string, fetcher: typeof fetch)
   const response = await fetcher(tokenUri, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth2:grant-type:jwt-bearer', assertion: `${unsigned}.${signature}` }),
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${unsigned}.${signature}` }),
   });
   const body = (await response.json().catch(() => null)) as { access_token?: string; expires_in?: number; error?: string } | null;
   if (!response.ok || !body?.access_token) {
@@ -189,7 +189,10 @@ export class ProductionMiniMaxAIProvider implements RealAIProvider {
       throw new HttpError(502, 'minimax_generation_failed', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
     const text = body?.choices?.[0]?.message?.content;
-    if (!text) throw new HttpError(502, 'minimax_invalid_response', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
+    if (!text) {
+      console.error('MiniMax returned no content', { status: response.status, baseStatusCode: body?.base_resp?.status_code, model: this.config.model });
+      throw new HttpError(502, 'minimax_invalid_response', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
+    }
     return parseProviderJson(text, 'minimax_invalid_response');
   }
 }

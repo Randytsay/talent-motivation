@@ -109,7 +109,37 @@ async function main() {
     const eventId = 'mock-event-001';
     console.log('E2E: verifying an event-scoped assessment without Presenter consent');
     await desktop.goto(`${baseUrl}/?eventId=${eventId}`);
+    let failedAssessmentId = '';
+    await desktop.route('**/api/reports/generate', async (route) => {
+      failedAssessmentId = route.request().postDataJSON().assessmentId;
+      await route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: { message: 'AI 測試失敗，請重試。' } }) });
+    }, { times: 1 });
     await completeAssessmentFlow(desktop, false);
+    await desktop.getByRole('alert').filter({ hasText: 'AI 測試失敗' }).waitFor();
+    assert(failedAssessmentId, 'failed generation must target the saved assessment');
+    // This deliberately injected HTTP failure should be the only console error.
+    assert.equal(consoleErrors.length, 1);
+    assert.match(consoleErrors.pop()!, /502/);
+    await desktop.reload();
+    await desktop.getByRole('button', { name: '重新產生 AI 解析' }).waitFor();
+    assert.equal(await desktop.getByText('正在為你生成專屬特質解析…', { exact: true }).count(), 0);
+    // A missing saved report is expected while recovering from the injected failure.
+    assert.equal(consoleErrors.length, 1);
+    assert.match(consoleErrors.pop()!, /404/);
+    let releaseRetry!: () => void;
+    const retryGate = new Promise<void>((resolve) => { releaseRetry = resolve; });
+    await desktop.route('**/api/reports/generate', async (route) => {
+      assert.equal(route.request().postDataJSON().assessmentId, failedAssessmentId);
+      await retryGate;
+      await route.continue();
+    }, { times: 1 });
+    await desktop.getByRole('button', { name: '重新產生 AI 解析' }).click();
+    assert.equal(await desktop.getByRole('button', { name: '正在產生 AI 解析…' }).isDisabled(), true);
+    releaseRetry();
+    await desktop.getByText('你的三個高重複訊號').waitFor();
+    assert.equal(await desktop.getByRole('button', { name: '重新產生 AI 解析' }).count(), 0);
+    assert.equal(requests.filter((request) => request.method === 'POST' && request.pathname === '/api/assessments').length, 1, 'AI retry must not create a new assessment');
+    console.log('E2E: AI failure, refresh, retry, disabled duplicate action and same-assessment recovery passed');
     await desktop.goto(`${baseUrl}/presenter?eventId=${eventId}`);
     await desktop.getByRole('heading', { name: '等待經同意的分享' }).waitFor();
     console.log('E2E: no-consent Presenter correctly remains empty');
@@ -119,6 +149,7 @@ async function main() {
     await desktop.getByText('你的探索摘要').waitFor();
     await desktop.getByRole('button', { name: '重新開始一輪' }).click();
     await completeAssessmentFlow(desktop, true);
+    await desktop.getByText('你的三個高重複訊號').waitFor();
     await desktop.reload();
     await desktop.getByText('你的探索摘要').waitFor();
     console.log('E2E: saved canonical assessment and report');

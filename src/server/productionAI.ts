@@ -34,6 +34,8 @@ const REPORT_SYSTEM_PROMPT = [
   '不可使用「你就是、你的天命、你一定適合、這證明你、你應該辭職」等定論；可使用「可能、值得留意、可以探索」。',
   '探索方向優先寫現職調整與小型副專案，不可導向特定商業機會。',
   '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
+  `輸出必須符合這份 JSON Schema：${JSON.stringify(REPORT_JSON_SCHEMA)}`,
+  '所有文字使用繁體中文且不可空白；三個清單各提供 1 至 3 個非空白字串，每項及每個文字欄位以 80 字內為原則。',
 ].join('\n');
 
 function aiFacts(assessment: AssessmentRecord): string {
@@ -72,6 +74,10 @@ function parseProviderJson(text: string, errorCode: string): AIReportContent {
     if (!parsed.unused_potential) parsed.unused_potential = '可以從一個小任務開始觀察天賦使用感的變化。';
     return validateAIReport(parsed);
   } catch (error) {
+    console.error('AI report validation failed', {
+      provider: errorCode.replace('_invalid_response', ''),
+      code: error instanceof HttpError ? error.code : errorCode,
+    });
     if (error instanceof HttpError) throw error;
     throw new HttpError(502, errorCode, 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
   }
@@ -141,11 +147,12 @@ export class ProductionVertexAIProvider implements RealAIProvider {
           responseMimeType: 'application/json',
           responseSchema: REPORT_JSON_SCHEMA,
           temperature: 0.2,
-          maxOutputTokens: 1400,
+          maxOutputTokens: 4096,
+          ...(model.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: 'LOW' } } : {}),
         },
       }),
     });
-    const body = (await response.json().catch(() => null)) as { error?: { code?: number; status?: string; message?: string }; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } | null;
+    const body = (await response.json().catch(() => null)) as { error?: { code?: number; status?: string; message?: string }; candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> } | null;
     if (!response.ok) {
       console.error('Vertex generation failed', {
         status: response.status,
@@ -154,10 +161,16 @@ export class ProductionVertexAIProvider implements RealAIProvider {
         googleMessage: body?.error?.message?.slice(0, 500),
         model: this.config.model,
         location,
+        serviceAccount: parseVertexServiceAccount(this.config.serviceAccountJson).client_email,
       });
       throw new HttpError(502, 'vertex_generation_failed', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
-    const text = body?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('');
+    const candidate = body?.candidates?.[0];
+    if (candidate?.finishReason === 'MAX_TOKENS') {
+      console.error('Vertex report truncated', { model: this.config.model, finishReason: candidate.finishReason });
+      throw new HttpError(502, 'vertex_output_truncated', 'AI 解析內容尚未完整產生，請重新嘗試；你的測驗結果已保存。');
+    }
+    const text = candidate?.content?.parts?.filter((part) => !part.thought).map((part) => part.text ?? '').join('');
     if (!text) throw new HttpError(502, 'vertex_invalid_response', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     return parseProviderJson(text, 'vertex_invalid_response');
   }
@@ -184,7 +197,7 @@ export class ProductionMiniMaxAIProvider implements RealAIProvider {
         stream: false,
         thinking: { type: 'disabled' },
         reasoning_split: true,
-        max_completion_tokens: 1600,
+        max_completion_tokens: 4096,
         temperature: 0.2,
         top_p: 0.9,
       }),
@@ -203,6 +216,10 @@ export class ProductionMiniMaxAIProvider implements RealAIProvider {
       throw new HttpError(502, 'minimax_generation_failed', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
     const choice = body?.choices?.[0];
+    if (choice?.finish_reason === 'length') {
+      console.error('MiniMax report truncated', { model: this.config.model, finishReason: 'length' });
+      throw new HttpError(502, 'minimax_output_truncated', 'AI 解析內容尚未完整產生，請重新嘗試；你的測驗結果已保存。');
+    }
     const text = choice?.message?.content?.trim();
     if (!text) {
       console.error('MiniMax returned no content', {

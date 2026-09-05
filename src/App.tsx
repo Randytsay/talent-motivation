@@ -238,6 +238,7 @@ function AssessmentApp() {
   const [serverReport, setServerReport] = useState<AIReport | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const completedAnswers = Object.keys(draft.riasecAnswers).length;
   const riasecResult = useMemo(() => {
     if (completedAnswers !== RIASEC_QUESTIONS.length) return null;
@@ -427,17 +428,26 @@ function AssessmentApp() {
       } satisfies AssessmentInput);
       setCompletedAssessment(assessment);
       localAssessmentDraftRepository.clear();
-      try {
-        const { report } = await generateReport(assessment.assessmentId);
-        setServerReport(report);
-      } catch (error) {
-        setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析稍後即可查看，你的測驗結果已保存。');
-      }
+      await requestReport(assessment.assessmentId);
     } catch (error) {
       setPersistenceError(error instanceof ApiError ? error.message : '暫時無法保存結果；你的本機草稿會保留。');
       patchDraft({ step: 'report' });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function requestReport(assessmentId: string) {
+    if (isGeneratingReport) return;
+    setIsGeneratingReport(true);
+    setPersistenceError(null);
+    try {
+      const { report } = await generateReport(assessmentId);
+      setServerReport(report);
+    } catch (error) {
+      setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析暫時無法完成；你的測驗結果已保存，請稍後重試。');
+    } finally {
+      setIsGeneratingReport(false);
     }
   }
 
@@ -458,7 +468,7 @@ function AssessmentApp() {
   }, [draft.subjectiveDriver, riasecResult]);
 
   if (completedAssessment) {
-    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} onRestart={returnHome} />;
+    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} isGenerating={isGeneratingReport} onRetry={() => void requestReport(completedAssessment.assessmentId)} onRestart={returnHome} />;
   }
 
   return (
@@ -805,11 +815,15 @@ function ServerReport({
   assessment,
   report,
   persistenceError,
+  isGenerating,
+  onRetry,
   onRestart,
 }: {
   assessment: ClientAssessment;
   report: AIReport | null;
   persistenceError: string | null;
+  isGenerating: boolean;
+  onRetry: () => void;
   onRestart: () => void;
 }) {
   const lifePathContent = LIFE_PATH_CONTENT[assessment.lifePath.value];
@@ -863,13 +877,16 @@ function ServerReport({
           ) : (
             <div className="reflection-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
               <small>AI 綜合解析</small>
-              <p style={{ fontSize: '15px', marginTop: '10px' }}>✨ 正在為你生成專屬特質解析，若稍有延遲，可稍後重新整理查看…</p>
+              <p style={{ fontSize: '15px', marginTop: '10px' }}>{isGenerating ? '正在為你生成專屬特質解析…' : '測驗結果已保存，AI 解析尚未完成。可以重新產生，不必再做一次測驗。'}</p>
             </div>
           )}
+          {!report ? <button className="primary-button" type="button" disabled={isGenerating} onClick={onRetry}>
+            {isGenerating ? '正在產生 AI 解析…' : '重新產生 AI 解析'}
+          </button> : null}
           {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           {assessment.assessmentMode === 'co_present' ? <GuestSaveActions assessment={assessment} /> : null}
           <div className="action-row" style={{ marginTop: 28 }}>
-            <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
+            <button className="secondary-button" type="button" disabled={isGenerating} onClick={onRestart}>重新開始一輪</button>
           </div>
           <p className="disclaimer">{DISCLAIMER}</p>
         </section>

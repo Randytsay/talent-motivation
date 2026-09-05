@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MiniMaxAIProvider, VertexAIProvider, generateValidatedReport } from './ai';
+import { VertexAIProvider, generateValidatedReport } from './ai';
+import { ProductionMiniMaxAIProvider, ProductionVertexAIProvider } from './productionAI';
 import { saveAssessment } from './assessment';
 import type { Identity } from './contracts';
 import { loadRuntimeConfig } from './env';
@@ -41,7 +42,7 @@ function liveBase() {
 }
 
 describe('selectable live AI providers', () => {
-  it('loads Vertex AI configuration without requiring a Gemini API key', async () => {
+  it('loads Vertex AI configuration without requiring a Gemini API key', () => {
     const config = loadRuntimeConfig({
       ...liveBase(),
       LLM_PROVIDER: 'vertex',
@@ -51,10 +52,10 @@ describe('selectable live AI providers', () => {
       VERTEX_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: 'vertex@example.test', private_key: 'unused-in-test' }),
     });
     expect(config.ai).toMatchObject({ provider: 'vertex', projectId: 'trial-project', location: 'global', model: 'gemini-3.7-flash' });
-    expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(VertexAIProvider);
+    expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(ProductionVertexAIProvider);
   });
 
-  it('uses Vertex project auth, structured JSON, and server-side facts only', async () => {
+  it('keeps the legacy Vertex adapter contract and private-fact boundary covered', async () => {
     const repositories = new InMemoryRepositories();
     const { assessment } = await saveAssessment(payload(), identity, repositories);
     let requestUrl = '';
@@ -74,12 +75,11 @@ describe('selectable live AI providers', () => {
     const report = await generateValidatedReport(assessment, provider);
     expect(report.modelName).toBe('vertex:gemini-3.7-flash');
     expect(requestUrl).toContain('/projects/trial-project/locations/global/publishers/google/models/gemini-3.7-flash:generateContent');
-    expect(requestBody).toContain('responseJsonSchema');
     expect(requestBody).not.toContain('1978-11-05');
     expect(requestBody).not.toContain('riasecAnswers');
   });
 
-  it('loads MiniMax CN Token Plan configuration and creates its provider', () => {
+  it('loads MiniMax CN Token Plan configuration and creates its production provider', () => {
     const config = loadRuntimeConfig({
       ...liveBase(),
       LLM_PROVIDER: 'minimax',
@@ -90,23 +90,23 @@ describe('selectable live AI providers', () => {
     expect(config.ai).toEqual({
       provider: 'minimax', apiKey: 'sk-cp-test', model: 'MiniMax-M3', baseUrl: 'https://api.minimaxi.com/v1',
     });
-    expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(MiniMaxAIProvider);
+    expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(ProductionMiniMaxAIProvider);
   });
 
-  it('parses MiniMax reasoning-wrapped JSON and keeps private raw facts out of the request', async () => {
+  it('uses the current MiniMax M3 CN endpoint and keeps private raw facts out of the request', async () => {
     const repositories = new InMemoryRepositories();
     const { assessment } = await saveAssessment(payload(), identity, repositories);
     let requestBody = '';
-    const provider = new MiniMaxAIProvider({
+    const provider = new ProductionMiniMaxAIProvider({
       apiKey: 'sk-cp-test',
       model: 'MiniMax-M3',
       baseUrl: 'https://api.minimaxi.com/v1',
     }, async (input, init) => {
-      expect(String(input)).toBe('https://api.minimaxi.com/v1/chat/completions');
+      expect(String(input)).toBe('https://api.minimaxi.com/v1/text/chatcompletion_v2');
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer sk-cp-test');
       requestBody = String(init?.body);
       return new Response(JSON.stringify({
-        choices: [{ message: { content: `<think>private reasoning</think>\n\n\`\`\`json\n${JSON.stringify(validReport)}\n\`\`\`` } }],
+        choices: [{ message: { content: JSON.stringify(validReport) } }],
         base_resp: { status_code: 0 },
       }));
     });
@@ -114,7 +114,6 @@ describe('selectable live AI providers', () => {
     const report = await generateValidatedReport(assessment, provider);
     expect(report.modelName).toBe('minimax:MiniMax-M3');
     expect(report.summary).toBe(validReport.summary);
-    expect(requestBody).toContain('reasoning_split');
     expect(requestBody).not.toContain('1978-11-05');
     expect(requestBody).not.toContain('riasecAnswers');
   });

@@ -1,5 +1,6 @@
-import { GeminiAIProvider, MiniMaxAIProvider, MockAIProvider, VertexAIProvider, type AIProvider, type RealAIProvider } from './ai';
+import { GeminiAIProvider, MockAIProvider, type AIProvider, type RealAIProvider } from './ai';
 import { FallbackAIProvider } from './aiFallback';
+import { ProductionMiniMaxAIProvider, ProductionVertexAIProvider } from './productionAI';
 import { loadRuntimeConfig, type AIConfig, type RuntimeConfig } from './env';
 import type { Repositories } from './repositories';
 import { InMemoryRepositories } from './repositories';
@@ -60,8 +61,8 @@ const larkInternationalFetch: LarkFetch = async (input, init) => {
 
 function realProviderFor(config: AIConfig): RealAIProvider {
   if (config.provider === 'gemini') return new GeminiAIProvider(config);
-  if (config.provider === 'vertex') return new VertexAIProvider(config);
-  if (config.provider === 'minimax') return new MiniMaxAIProvider(config);
+  if (config.provider === 'vertex') return new ProductionVertexAIProvider(config);
+  if (config.provider === 'minimax') return new ProductionMiniMaxAIProvider(config);
   throw new Error('Unsupported real AI provider.');
 }
 

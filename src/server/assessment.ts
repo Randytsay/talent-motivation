@@ -153,9 +153,13 @@ export async function saveAssessment(
   now: () => string = () => new Date().toISOString(),
 ): Promise<{ participant: Participant; assessment: AssessmentRecord }> {
   const validated = validateAssessment(payload);
-  const participant = await repositories.participants.upsertIdentity(identity);
+  const participantPromise = repositories.participants.upsertIdentity(identity);
+  const explicitSubjectPromise = validated.subjectId
+    ? repositories.subjects.findById(validated.subjectId)
+    : undefined;
+  const participant = await participantPromise;
   let subject: SubjectRecord | null = validated.subjectId
-    ? await repositories.subjects.findById(validated.subjectId)
+    ? await explicitSubjectPromise ?? null
     : await repositories.subjects.findSelfForParticipant(participant.participantId);
   if (validated.subjectId && !subject) throw new HttpError(404, 'subject_not_found', '找不到這個探索對象。');
   if (subject && !canParticipantAccessSubject(subject, participant.participantId)) {
@@ -185,8 +189,10 @@ export async function saveAssessment(
     completedAt: now(),
   };
   await repositories.assessments.append(assessment);
-  await repositories.participants.setLatestAssessment(participant.participantId, assessment.assessmentId);
-  await repositories.subjects.setLastAssessment(subject.subjectId, assessment.assessmentId);
+  await Promise.all([
+    repositories.participants.setLatestAssessment(participant.participantId, assessment.assessmentId),
+    repositories.subjects.setLastAssessment(subject.subjectId, assessment.assessmentId),
+  ]);
   if (assessment.presenterConsent && assessment.eventId) {
     const event = await eventRepository.findById(assessment.eventId);
     if (event?.status === 'active') await eventRepository.setCurrentPresenterAssessment(event.eventId, assessment.assessmentId);

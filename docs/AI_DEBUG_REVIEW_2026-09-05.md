@@ -71,6 +71,6 @@
 - 服務帳號驗證失敗日誌新增 client_email（不含 private key），讓下一次正式請求能確認實際 principal。
 - 最終本地 lint、89 項測試、build 通過；包含上述實作的 browser E2E 亦通過。最新測試擴充僅調整測試斷言，沒有再改瀏覽器實作。
 - Vercel 的 sensitive 變數無法由 env pull/API 回讀，本次未試圖繞過；下載的暫存環境檔與測試脚本已刪除。正式站金鑰與既有 IAM 綁定保持原值。
-- 正式站真人驗證停在已開啟的 Yandex LINE Login 分頁，等待使用者登入。需重試既有測驗、確認 Lark 保存及刷新還原，並檢查 403 是否仍發生。
+- 正式站真人驗證已完成：使用者完成 LINE 登入後，既有測驗成功生成完整報告，重新整理後仍可還原；`/api/reports/generate` 回傳 201，未再出現 Vertex 403 或 MiniMax 失敗。
 
-- 最終正式部署：`dpl_HXQAp3qU5BwUjSdywTN4RHsmETJL`，READY，別名 `https://talent-motivation.vercel.app/`；健康端點 200，首頁已移除舊 report-retry.js。此部署包含本地未提交修復，GitHub main 尚未同步修復。
+- 正式部署：`dpl_FWLCQG9p9HTihxf1nbxWTnAbmC41`，READY，別名 `https://talent-motivation.vercel.app/`；健康端點 200，首頁已移除舊 report-retry.js。修復已提交為 `7e179e5` 並推送至 `origin/codex/debug-ai-analysis`；尚未合併 `main`。

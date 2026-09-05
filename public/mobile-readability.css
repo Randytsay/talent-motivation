@@ -57,4 +57,19 @@
   .reflection-inputs textarea { font-size: 16px !important; line-height: 1.7 !important; }
   .presenter-consent legend, .presenter-consent__choice { font-size: 16px !important; }
   .presenter-consent p, .presenter-consent ul, .privacy-list { font-size: 15px !important; line-height: 1.8 !important; }
+
+  .report-panel > .field-error[role='alert'] {
+    margin-top: 20px !important;
+    padding: 14px 16px !important;
+    border: 1px solid #e2b9b0 !important;
+    border-radius: 12px !important;
+    background: #fff5f2 !important;
+    font-size: 16px !important;
+    line-height: 1.7 !important;
+  }
+}
+
+/* If generation has already failed, do not keep showing an endless generating card. */
+.report-panel > .reflection-card:has(+ .field-error[role='alert']) {
+  display: none;
 }

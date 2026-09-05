@@ -1,4 +1,9 @@
 import { vercelWebHandler } from '../../src/server/http';
-import { createRouteHandlers } from '../../src/server/routes';
+import { createLinePostCourseWebhookHandler, lineMessagingConfigFromEnv } from '../../src/server/linePostCourse';
+import { createRuntime } from '../../src/server/runtime';
 
-export default vercelWebHandler(createRouteHandlers().lineWebhook);
+const runtime = createRuntime();
+
+export default vercelWebHandler(
+  createLinePostCourseWebhookHandler(runtime, lineMessagingConfigFromEnv()),
+);

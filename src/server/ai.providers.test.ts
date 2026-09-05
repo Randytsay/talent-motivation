@@ -45,12 +45,12 @@ describe('selectable live AI providers', () => {
     const config = loadRuntimeConfig({
       ...liveBase(),
       LLM_PROVIDER: 'vertex',
-      LLM_MODEL: 'gemini-3.5-flash',
+      LLM_MODEL: 'gemini-3.7-flash',
       VERTEX_PROJECT_ID: 'trial-project',
       VERTEX_LOCATION: 'global',
       VERTEX_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: 'vertex@example.test', private_key: 'unused-in-test' }),
     });
-    expect(config.ai).toMatchObject({ provider: 'vertex', projectId: 'trial-project', location: 'global', model: 'gemini-3.5-flash' });
+    expect(config.ai).toMatchObject({ provider: 'vertex', projectId: 'trial-project', location: 'global', model: 'gemini-3.7-flash' });
     expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(VertexAIProvider);
   });
 
@@ -63,7 +63,7 @@ describe('selectable live AI providers', () => {
       projectId: 'trial-project',
       location: 'global',
       serviceAccountJson: '{}',
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.7-flash',
     }, async (input, init) => {
       requestUrl = String(input);
       requestBody = String(init?.body);
@@ -72,8 +72,8 @@ describe('selectable live AI providers', () => {
     }, async () => 'vertex-access-token');
 
     const report = await generateValidatedReport(assessment, provider);
-    expect(report.modelName).toBe('vertex:gemini-3.5-flash');
-    expect(requestUrl).toContain('/projects/trial-project/locations/global/publishers/google/models/gemini-3.5-flash:generateContent');
+    expect(report.modelName).toBe('vertex:gemini-3.7-flash');
+    expect(requestUrl).toContain('/projects/trial-project/locations/global/publishers/google/models/gemini-3.7-flash:generateContent');
     expect(requestBody).toContain('responseJsonSchema');
     expect(requestBody).not.toContain('1978-11-05');
     expect(requestBody).not.toContain('riasecAnswers');
@@ -83,12 +83,12 @@ describe('selectable live AI providers', () => {
     const config = loadRuntimeConfig({
       ...liveBase(),
       LLM_PROVIDER: 'minimax',
-      LLM_MODEL: 'MiniMax-M2.7',
+      LLM_MODEL: 'MiniMax-M3',
       MINIMAX_API_KEY: 'sk-cp-test',
       MINIMAX_BASE_URL: 'https://api.minimaxi.com/v1',
     });
     expect(config.ai).toEqual({
-      provider: 'minimax', apiKey: 'sk-cp-test', model: 'MiniMax-M2.7', baseUrl: 'https://api.minimaxi.com/v1',
+      provider: 'minimax', apiKey: 'sk-cp-test', model: 'MiniMax-M3', baseUrl: 'https://api.minimaxi.com/v1',
     });
     expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(MiniMaxAIProvider);
   });
@@ -99,7 +99,7 @@ describe('selectable live AI providers', () => {
     let requestBody = '';
     const provider = new MiniMaxAIProvider({
       apiKey: 'sk-cp-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       baseUrl: 'https://api.minimaxi.com/v1',
     }, async (input, init) => {
       expect(String(input)).toBe('https://api.minimaxi.com/v1/chat/completions');
@@ -112,7 +112,7 @@ describe('selectable live AI providers', () => {
     });
 
     const report = await generateValidatedReport(assessment, provider);
-    expect(report.modelName).toBe('minimax:MiniMax-M2.7');
+    expect(report.modelName).toBe('minimax:MiniMax-M3');
     expect(report.summary).toBe(validReport.summary);
     expect(requestBody).toContain('reasoning_split');
     expect(requestBody).not.toContain('1978-11-05');
@@ -121,10 +121,10 @@ describe('selectable live AI providers', () => {
 
   it('fails closed when the selected provider configuration is incomplete', () => {
     expect(() => loadRuntimeConfig({
-      ...liveBase(), LLM_PROVIDER: 'vertex', LLM_MODEL: 'gemini-3.5-flash',
+      ...liveBase(), LLM_PROVIDER: 'vertex', LLM_MODEL: 'gemini-3.7-flash',
     })).toThrow('VERTEX_PROJECT_ID');
     expect(() => loadRuntimeConfig({
-      ...liveBase(), LLM_PROVIDER: 'minimax', LLM_MODEL: 'MiniMax-M2.7',
+      ...liveBase(), LLM_PROVIDER: 'minimax', LLM_MODEL: 'MiniMax-M3',
     })).toThrow('MINIMAX_API_KEY');
     expect(() => loadRuntimeConfig({
       ...liveBase(), LLM_PROVIDER: 'unknown', LLM_MODEL: 'x',

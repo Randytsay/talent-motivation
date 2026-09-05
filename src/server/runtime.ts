@@ -1,5 +1,6 @@
-import { GeminiAIProvider, MiniMaxAIProvider, MockAIProvider, VertexAIProvider, type AIProvider } from './ai';
-import { loadRuntimeConfig, type RuntimeConfig } from './env';
+import { GeminiAIProvider, MiniMaxAIProvider, MockAIProvider, VertexAIProvider, type AIProvider, type RealAIProvider } from './ai';
+import { FallbackAIProvider } from './aiFallback';
+import { loadRuntimeConfig, type AIConfig, type RuntimeConfig } from './env';
 import type { Repositories } from './repositories';
 import { InMemoryRepositories } from './repositories';
 import { LarkOpenApiClient, LarkRepositories, type LarkFetch } from './lark';
@@ -57,13 +58,20 @@ const larkInternationalFetch: LarkFetch = async (input, init) => {
   return response;
 };
 
+function realProviderFor(config: AIConfig): RealAIProvider {
+  if (config.provider === 'gemini') return new GeminiAIProvider(config);
+  if (config.provider === 'vertex') return new VertexAIProvider(config);
+  if (config.provider === 'minimax') return new MiniMaxAIProvider(config);
+  throw new Error('Unsupported real AI provider.');
+}
+
 /** Composition root used by functions. The selected live provider stays server-only. */
 function aiProviderFor(config: RuntimeConfig): AIProvider {
   if (config.aiMode === 'mock') return new MockAIProvider();
-  if (config.ai?.provider === 'gemini') return new GeminiAIProvider(config.ai);
-  if (config.ai?.provider === 'vertex') return new VertexAIProvider(config.ai);
-  if (config.ai?.provider === 'minimax') return new MiniMaxAIProvider(config.ai);
-  throw new Error('Real AI runtime requires a configured AI provider.');
+  if (!config.ai) throw new Error('Real AI runtime requires a configured AI provider.');
+  const primary = realProviderFor(config.ai);
+  if (!config.aiFallback) return primary;
+  return new FallbackAIProvider(primary, realProviderFor(config.aiFallback));
 }
 
 export function createRuntime(config = loadRuntimeConfig(), repositories?: Repositories, aiProvider: AIProvider = aiProviderFor(config)): RuntimeServices {

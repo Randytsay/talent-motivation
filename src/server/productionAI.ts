@@ -145,9 +145,16 @@ export class ProductionVertexAIProvider implements RealAIProvider {
         },
       }),
     });
-    const body = (await response.json().catch(() => null)) as { error?: { code?: number; status?: string }; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } | null;
+    const body = (await response.json().catch(() => null)) as { error?: { code?: number; status?: string; message?: string }; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } | null;
     if (!response.ok) {
-      console.error('Vertex generation failed', { status: response.status, googleCode: body?.error?.code, googleStatus: body?.error?.status, model: this.config.model, location });
+      console.error('Vertex generation failed', {
+        status: response.status,
+        googleCode: body?.error?.code,
+        googleStatus: body?.error?.status,
+        googleMessage: body?.error?.message?.slice(0, 500),
+        model: this.config.model,
+        location,
+      });
       throw new HttpError(502, 'vertex_generation_failed', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
     const text = body?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('');
@@ -165,7 +172,7 @@ export class ProductionMiniMaxAIProvider implements RealAIProvider {
 
   async generate(assessment: AssessmentRecord): Promise<AIReportContent> {
     const baseUrl = this.config.baseUrl.replace(/\/+$/, '');
-    const response = await this.fetcher(`${baseUrl}/text/chatcompletion_v2`, {
+    const response = await this.fetcher(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -175,22 +182,36 @@ export class ProductionMiniMaxAIProvider implements RealAIProvider {
           { role: 'user', content: `請根據以下已驗證事實產生報告。只輸出 JSON：\n${aiFacts(assessment)}` },
         ],
         stream: false,
-        max_completion_tokens: 1400,
+        thinking: { type: 'disabled' },
+        reasoning_split: true,
+        max_completion_tokens: 1600,
         temperature: 0.2,
         top_p: 0.9,
       }),
     });
     const body = (await response.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ finish_reason?: string; message?: { content?: string | null; reasoning_content?: string | null } }>;
       base_resp?: { status_code?: number; status_msg?: string };
     } | null;
     if (!response.ok || (body?.base_resp?.status_code && body.base_resp.status_code !== 0)) {
-      console.error('MiniMax generation failed', { status: response.status, baseStatusCode: body?.base_resp?.status_code, model: this.config.model });
+      console.error('MiniMax generation failed', {
+        status: response.status,
+        baseStatusCode: body?.base_resp?.status_code,
+        baseStatusMessage: body?.base_resp?.status_msg?.slice(0, 300),
+        model: this.config.model,
+      });
       throw new HttpError(502, 'minimax_generation_failed', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
-    const text = body?.choices?.[0]?.message?.content;
+    const choice = body?.choices?.[0];
+    const text = choice?.message?.content?.trim();
     if (!text) {
-      console.error('MiniMax returned no content', { status: response.status, baseStatusCode: body?.base_resp?.status_code, model: this.config.model });
+      console.error('MiniMax returned no content', {
+        status: response.status,
+        baseStatusCode: body?.base_resp?.status_code,
+        finishReason: choice?.finish_reason,
+        hasReasoning: Boolean(choice?.message?.reasoning_content),
+        model: this.config.model,
+      });
       throw new HttpError(502, 'minimax_invalid_response', 'AI 綜合解析暫時無法完成；你的測驗結果已保存。');
     }
     return parseProviderJson(text, 'minimax_invalid_response');

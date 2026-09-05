@@ -93,7 +93,7 @@ describe('selectable live AI providers', () => {
     expect(createRuntime(config, new InMemoryRepositories()).aiProvider).toBeInstanceOf(ProductionMiniMaxAIProvider);
   });
 
-  it('uses the current MiniMax M3 CN endpoint and keeps private raw facts out of the request', async () => {
+  it('uses the current MiniMax M3 OpenAI-compatible CN endpoint and keeps private raw facts out of the request', async () => {
     const repositories = new InMemoryRepositories();
     const { assessment } = await saveAssessment(payload(), identity, repositories);
     let requestBody = '';
@@ -102,11 +102,15 @@ describe('selectable live AI providers', () => {
       model: 'MiniMax-M3',
       baseUrl: 'https://api.minimaxi.com/v1',
     }, async (input, init) => {
-      expect(String(input)).toBe('https://api.minimaxi.com/v1/text/chatcompletion_v2');
+      expect(String(input)).toBe('https://api.minimaxi.com/v1/chat/completions');
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer sk-cp-test');
       requestBody = String(init?.body);
+      const parsedBody = JSON.parse(requestBody) as Record<string, unknown>;
+      expect(parsedBody.thinking).toEqual({ type: 'disabled' });
+      expect(parsedBody.reasoning_split).toBe(true);
+      expect(parsedBody.max_completion_tokens).toBe(1600);
       return new Response(JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(validReport) } }],
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(validReport) } }],
         base_resp: { status_code: 0 },
       }));
     });

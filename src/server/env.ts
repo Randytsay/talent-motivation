@@ -29,6 +29,7 @@ export interface RuntimeConfig {
     subjectsTableId?: string;
   };
   ai?: AIConfig;
+  aiFallback?: AIConfig;
 }
 
 export class EnvironmentError extends Error {
@@ -90,6 +91,22 @@ function readAIConfig(environment: Environment): AIConfig | undefined {
   throw new EnvironmentError('LLM_PROVIDER must be gemini, vertex, minimax, or mock.');
 }
 
+function readAIFallbackConfig(environment: Environment): AIConfig | undefined {
+  const provider = environment.LLM_FALLBACK_PROVIDER;
+  if (!provider) return undefined;
+  if (provider !== 'minimax') {
+    throw new EnvironmentError('LLM_FALLBACK_PROVIDER currently supports minimax only.');
+  }
+  const missing = required(environment, ['LLM_FALLBACK_MODEL', 'MINIMAX_API_KEY']);
+  if (missing.length) throw new EnvironmentError(`Incomplete fallback configuration: ${missing.join(', ')}`);
+  return {
+    provider: 'minimax',
+    model: environment.LLM_FALLBACK_MODEL!,
+    apiKey: environment.MINIMAX_API_KEY!,
+    baseUrl: environment.MINIMAX_BASE_URL ?? 'https://api.minimaxi.com/v1',
+  };
+}
+
 /**
  * This module is imported only by Vercel Functions. It intentionally never
  * reads `VITE_*` secrets or passes a configuration object to browser code.
@@ -136,6 +153,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
   });
   if (lark && environment.LARK_SUBJECTS_TABLE_ID) lark.subjectsTableId = environment.LARK_SUBJECTS_TABLE_ID;
   const ai = readAIConfig(environment);
+  const aiFallback = readAIFallbackConfig(environment);
 
   const defaultDevelopmentMock = deployment === 'development' && !line && !lark && !ai;
   const isMemoryMock = runtimeMode === 'mock' || defaultDevelopmentMock;
@@ -172,6 +190,7 @@ export function loadRuntimeConfig(environment: Environment = process.env): Runti
     line: identityMode === 'line' ? line : undefined,
     lark: persistenceMode === 'lark' ? lark : undefined,
     ai: aiMode === 'real' ? ai : undefined,
+    aiFallback: aiMode === 'real' ? aiFallback : undefined,
   };
 }
 

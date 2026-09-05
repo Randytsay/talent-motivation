@@ -37,7 +37,7 @@ function routeFor(pathname: string, handlers: ReturnType<typeof createRouteHandl
 
 async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
   await page.getByRole('button', { name: '開始探索我的天賦' }).click();
-  await page.getByRole('button', { name: '我了解，開始探索' }).click();
+  await page.getByRole('button', { name: '準備好了，開始我的旅程' }).click();
   await page.locator('#birth-date').fill('1978-11-05');
   await page.getByRole('button', { name: '看看這面鏡子' }).click();
   await page.getByLabel('生命靈數 5').waitFor();

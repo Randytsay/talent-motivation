@@ -151,13 +151,161 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .birth-profile-cards b { color: var(--ink); font-family: 'Noto Serif TC', serif; font-size: 24px; }
 .birth-profile-cards span { color: #7b818b; font-size: 11px; line-height: 1.45; }
 
+.birth-insight-box {
+  margin-top: 28px;
+  padding: 24px 20px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 18px;
+  background: #fffdf9;
+  box-shadow: 0 4px 20px rgba(36, 50, 71, .05);
+  text-align: left;
+}
+.birth-insight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.birth-insight-header h3 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-family: 'Noto Serif TC', serif;
+  font-size: 20px;
+}
+.birth-insight-header span {
+  color: var(--gold-deep);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.insight-item {
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(220, 214, 202, .6);
+}
+.insight-item:last-of-type {
+  margin-bottom: 0;
+}
+.insight-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+.insight-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.insight-tag--core { background: #fdf2ea; color: #b85c38; }
+.insight-tag--outer { background: #edf4fa; color: #2c689c; }
+.insight-tag--inner { background: #f4edf8; color: #7b3e96; }
+.insight-tag--stage { background: #f7f5ee; color: #857049; }
+
+.insight-item-title strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+.insight-desc {
+  margin: 0;
+  color: #4f5865;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.insight-hit {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #ece6da;
+  color: var(--clay);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.insight-tension-card {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-left: 4px solid var(--gold);
+  border-radius: 10px;
+  background: #fffaf0;
+}
+.insight-tension-card small {
+  display: block;
+  color: var(--gold-deep);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+.insight-tension-card p {
+  margin: 0;
+  color: #4a5360;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
 .choice-grid { display: grid; gap: 10px; margin-top: 27px; }
 .choice-grid--three { grid-template-columns: repeat(3, 1fr); }
 .choice-button { min-height: 64px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 13px; color: var(--ink); background: rgba(255, 255, 255, .78); font-size: 15px; font-weight: 700; line-height: 1.45; text-align: left; transition: border .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease; }
-.choice-button:hover { border-color: #bcae94; background: #fff; transform: translateY(-2px); box-shadow: 0 8px 22px rgba(36, 50, 71, .06); }
+@media (hover: hover) and (pointer: fine) {
+  .choice-button:not(.choice-button--selected):hover { border-color: #bcae94; background: #fff; transform: translateY(-2px); box-shadow: 0 8px 22px rgba(36, 50, 71, .06); }
+}
 .choice-button small { display: block; margin-top: 4px; color: #818791; font-size: 11px; font-weight: 400; }
-.choice-button--selected { border-color: var(--ink); color: #fff; background: var(--ink); box-shadow: inset 4px 0 0 var(--gold), 0 8px 20px rgba(36, 50, 71, .12); }
-.choice-button--selected small { color: #e9ecf0; }
+
+/* Selected state: strictly lock dark background and white text against hover/active/focus */
+.choice-button--selected,
+.choice-button--selected:hover,
+.choice-button--selected:focus,
+.choice-button--selected:active {
+  border-color: var(--ink-strong) !important;
+  color: #ffffff !important;
+  background: var(--ink-strong) !important;
+  box-shadow: inset 4px 0 0 var(--gold), 0 8px 20px rgba(36, 50, 71, .15) !important;
+}
+.choice-button--selected span,
+.choice-button--selected:hover span,
+.choice-button--selected:focus span,
+.choice-button--selected:active span {
+  color: #ffffff !important;
+}
+.choice-button--selected small,
+.choice-button--selected:hover small,
+.choice-button--selected:focus small,
+.choice-button--selected:active small {
+  color: #e2e8f0 !important;
+}
+
+.action-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 30px; }
+.action-row .primary-button, .action-row .secondary-button, .action-row .text-button { margin-top: 0; }
+.header-nav { display: flex; align-items: center; gap: 12px; }
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .88);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border .18s ease, background .18s ease, transform .18s ease;
+}
+.back-button:hover {
+  border-color: #bcae94;
+  background: #ffffff;
+  transform: translateX(-2px);
+}
+.question-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 28px; }
+
 .resonance-detail { margin-top: 35px; }
 .resonance-detail .field-label { margin-top: 0; }
 .choice-stack { display: grid; gap: 8px; }

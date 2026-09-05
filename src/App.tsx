@@ -7,8 +7,9 @@ import { PresenterPage } from './components/PresenterPage';
 import { LIFE_PATH_CONTENT } from './data/lifePathContent';
 import { RIASEC_META, RIASEC_QUESTIONS } from './data/riasecQuestions';
 import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePath';
-import { calculateBirthProfile } from './lib/scoring/birthProfile';
+import { calculateBirthProfile, type BirthProfileResult } from './lib/scoring/birthProfile';
 import { calculateBirthSignature } from './lib/scoring/birthSignature';
+import { CORE_NARRATIVES, OUTER_NARRATIVES, INNER_NARRATIVES, getProfileTension } from './data/birthProfileNarratives';
 import { scoreRiasec } from './lib/scoring/riasec';
 import { ApiError, createAssessment, createClaim, createSubject, generateReport, getClaimPreview, getLatestAssessment, getPublicShare, getReport, redeemClaim, type ClientAssessment } from './lib/api/client';
 import { useAuthBootstrap, type AuthState } from './lib/api/authBootstrap';
@@ -21,6 +22,7 @@ import type {
   Priority,
   RiasecAnswer,
   RiasecCode,
+  RiasecResult,
   TalentUsage,
 } from './types/domain';
 import type { AIReport, AssessmentInput } from './server/contracts';
@@ -127,6 +129,106 @@ function PublicSharePage() {
   </section></main>;
 }
 
+function BirthProfileCards({ birthProfile }: { birthProfile: BirthProfileResult }) {
+  const main = birthProfile.pyramid.main;
+  const outer = birthProfile.pyramid.outerComposite;
+  const inner = birthProfile.pyramid.innerComposite;
+  const stage = birthProfile.currentStage;
+  const coreInfo = CORE_NARRATIVES[main] ?? {
+    title: `${main} 號特質`,
+    tagline: '獨特的核心天賦',
+    description: '具備獨特的思考與行動風格。',
+    relatableHit: '在適合你的環境中能發揮獨特亮點。',
+  };
+  const tension = getProfileTension(outer, inner);
+
+  return (
+    <div className="birth-profile-compact" style={{ marginTop: 28 }}>
+      <small>第一面鏡子 · 出生結構與天賦密碼</small>
+      <div className="birth-profile-cards">
+        <div><b>{main}</b><span>核心天賦本色</span></div>
+        <div><b>{outer}</b><span>外在處事風格</span></div>
+        <div><b>{inner}</b><span>內在深層渴望</span></div>
+        <div><b>{stage.number ?? '—'}</b><span>{stage.label}</span></div>
+      </div>
+
+      <div className="birth-insight-box">
+        <div className="birth-insight-header">
+          <h3>出生日期特質深度解密</h3>
+          <span>你的專屬特質解析</span>
+        </div>
+
+        <div className="insight-item">
+          <div className="insight-item-title">
+            <span className="insight-tag insight-tag--core">🌟 核心天賦 · {main} 號</span>
+            <strong>{coreInfo.title}（{coreInfo.tagline}）</strong>
+          </div>
+          <p className="insight-desc">{coreInfo.description}</p>
+          <div className="insight-hit">💡 戳中心聲：{coreInfo.relatableHit}</div>
+        </div>
+
+        <div className="insight-item">
+          <div className="insight-item-title">
+            <span className="insight-tag insight-tag--outer">🎭 外在風格 · {outer} 號</span>
+            <strong>別人眼中的你</strong>
+          </div>
+          <p className="insight-desc">{OUTER_NARRATIVES[outer] ?? '展現出獨特的個人氣場。'}</p>
+        </div>
+
+        <div className="insight-item">
+          <div className="insight-item-title">
+            <span className="insight-tag insight-tag--inner">💭 內在渴望 · {inner} 號</span>
+            <strong>私底下的真實心聲</strong>
+          </div>
+          <p className="insight-desc">{INNER_NARRATIVES[inner] ?? '內心保有深層的個人渴望。'}</p>
+        </div>
+
+        {stage.number ? (
+          <div className="insight-item">
+            <div className="insight-item-title">
+              <span className="insight-tag insight-tag--stage">🌱 人生階段 · {stage.number} 號</span>
+              <strong>目前處於：{stage.label}</strong>
+            </div>
+            <p className="insight-desc">
+              當前階段的核心課題是學習並發揮 {stage.number} 號能量，這也是你這幾年最有感、最能累積成熟度的成長契機。
+            </p>
+          </div>
+        ) : null}
+
+        <div className="insight-tension-card">
+          <small>⚡ 內外在反差與真實寫照</small>
+          <p>{tension}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RiasecScoreSummary({ riasecResult }: { riasecResult: RiasecResult }) {
+  return (
+    <div className="score-summary">
+      <p className="top-code">{riasecResult.top3Code}</p>
+      <div className="top-cards">
+        {riasecResult.top3.map((code) => (
+          <div className="top-card" key={code} style={{ '--accent': RIASEC_META[code].color } as CSSProperties}>
+            <span>{code}</span>
+            <p>{RIASEC_META[code].name}</p>
+            <small>{RIASEC_META[code].verb} · {riasecResult.scores[code].normalized} 分</small>
+          </div>
+        ))}
+      </div>
+      <dl className="score-list">
+        {Object.values(riasecResult.scores).map((score) => (
+          <div key={score.code}>
+            <dt>{score.code} · {RIASEC_META[score.code].name}</dt>
+            <dd><span style={{ width: `${score.normalized}%` }} />{score.normalized}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function AssessmentApp() {
   const auth = useAuthBootstrap();
   const eventId = new URLSearchParams(window.location.search).get('eventId');
@@ -221,6 +323,63 @@ function AssessmentApp() {
     });
   }
 
+  function goBack() {
+    setDateError(null);
+    setPersistenceError(null);
+    switch (draft.step) {
+      case 'consent':
+        patchDraft({ step: 'landing' });
+        break;
+      case 'birthday':
+        patchDraft({ step: 'consent' });
+        break;
+      case 'life-path':
+        patchDraft({ step: 'birthday' });
+        break;
+      case 'resonance':
+        patchDraft({ step: 'life-path' });
+        break;
+      case 'transition':
+        patchDraft({ step: 'resonance' });
+        break;
+      case 'riasec':
+        if (completedAnswers > 0) {
+          const prevKeys = RIASEC_QUESTIONS.slice(0, completedAnswers - 1).map((q) => q.id);
+          const newAnswers: Partial<Record<`q${string}`, RiasecAnswer>> = {};
+          for (const k of prevKeys) {
+            if (draft.riasecAnswers[k]) newAnswers[k] = draft.riasecAnswers[k];
+          }
+          patchDraft({ riasecAnswers: newAnswers });
+        } else {
+          patchDraft({ step: 'transition' });
+        }
+        break;
+      case 'energy': {
+        const prevKeys = RIASEC_QUESTIONS.slice(0, 17).map((q) => q.id);
+        const newAnswers: Partial<Record<`q${string}`, RiasecAnswer>> = {};
+        for (const k of prevKeys) {
+          if (draft.riasecAnswers[k]) newAnswers[k] = draft.riasecAnswers[k];
+        }
+        patchDraft({ step: 'riasec', riasecAnswers: newAnswers });
+        break;
+      }
+      case 'riasec-result':
+        patchDraft({ step: 'energy' });
+        break;
+      case 'talent-usage':
+        patchDraft({ step: 'riasec-result' });
+        break;
+      case 'priorities':
+        patchDraft({ step: 'talent-usage' });
+        break;
+      case 'report':
+        patchDraft({ step: 'priorities' });
+        break;
+      default:
+        break;
+    }
+  }
+
   async function completeAssessment() {
     if (!draft.lifePath || !riasecResult || !draft.lifePathResonance || !draft.lifePathTopResonance || !draft.subjectiveDriver || !draft.talentUsage || !draft.explorationInterest) return;
     if (auth.status === 'unauthenticated') {
@@ -305,29 +464,28 @@ function AssessmentApp() {
   return (
     <main className="site-shell">
       {draft.step !== 'landing' && draft.step !== 'report' ? (
-        <ProgressHeader step={draft.step} onHome={returnHome} />
+        <ProgressHeader step={draft.step} onHome={returnHome} onBack={goBack} canBack={draft.step !== 'consent'} />
       ) : null}
       <section className="journey" aria-live="polite">
         {draft.step === 'landing' ? <Landing auth={auth} onLogin={() => { window.location.assign('/api/auth/line/start'); }} onStart={startNew} /> : null}
 
         {draft.step === 'consent' ? (
           <section className="panel panel--narrow entrance">
-            <p className="eyebrow">開始前 · 資料使用說明</p>
-            <h1>開始前，先說明資料怎麼使用</h1>
+            <p className="eyebrow">歡迎來到 · 天賦原動力</p>
+            <h1>很高興遇見你，開啟這段探索旅程</h1>
             <p className="lede">
-              未完成的作答草稿只保存在目前瀏覽器，方便你中途刷新後繼續。使用 LINE 登入後，完成的探索結果會保存到系統，以便之後再次查看。
+              接下來，我們將陪伴你一步步梳理自己的特質，看見內在潛藏的亮點與動力，為生活帶來更多清晰與選擇。這裡沒有標準答案，請帶著輕鬆、自在的心情，像和老朋友聊天一樣出發。
             </p>
             <div className="reflection-card" style={{ marginTop: 28 }}>
-              <small>資料使用與分享範圍</small>
+              <small>旅程中的隱私守護</small>
               <ul className="privacy-list">
-                <li>出生日期只用來計算 Life Path 與保存本次探索紀錄。</li>
-                <li>出生日期由程式計算 Birth Profile、Birth Signature 與年齡區間；AI 只接收這些計算後的象徵線索、RIASEC 衍生線索與你的反思回答，不會收到完整出生日期、LINE ID 或 18 題原始答案。</li>
-                <li>測驗結果不會自動公開。Presenter 分享必須另外取得本次活動的明確同意。</li>
-                <li>Presenter 不顯示完整出生日期、探索意願或其他未授權私人資料。</li>
+                <li><strong>完全私密，專屬於你</strong>：探索結果是送給你的一份內在整理，絕不會主動公開給任何人。</li>
+                <li><strong>安心填寫，不作他用</strong>：輸入的生日與每一個回答，只用於為你產出個人分析，絕不挪作其他用途。</li>
+                <li><strong>溫柔留存，隨時回顧</strong>：透過 LINE 登入，能幫你把這份發現好好留存，未來隨時都能回來看看自己的模樣。</li>
               </ul>
             </div>
             <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'birthday' })}>
-              我了解，開始探索
+              準備好了，開始我的旅程
             </button>
           </section>
         ) : null}
@@ -336,7 +494,7 @@ function AssessmentApp() {
           <section className="panel panel--narrow entrance">
             <p className="eyebrow">第一面鏡子 · 自我反思入口</p>
             <h1>先從你的出生日期開始</h1>
-            <p className="lede">我們只會計算 Life Path，作為一個觀察自己的小入口。</p>
+            <p className="lede">我們只會計算專屬的生命數字，作為一個觀察自己的小入口。</p>
             <label className="field-label" htmlFor="birth-date">出生日期</label>
             <input
               className="date-input"
@@ -356,14 +514,17 @@ function AssessmentApp() {
             </div>
             {draft.assessmentMode === 'co_present' ? <p className="guest-disclosure">請讓被探索的人親自回答後續題目。這份結果會先完整呈現；在對方認領前，陪同者可以暫時查看，認領後陪同者將不再有一般私人存取權。</p> : null}
             {dateError ? <p className="field-error" role="alert">{dateError}</p> : null}
-            <button className="primary-button" type="button" onClick={revealLifePath}>看看這面鏡子</button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button className="primary-button" type="button" onClick={revealLifePath}>看看這面鏡子</button>
+            </div>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
         ) : null}
 
         {draft.step === 'life-path' && lifePathContent && draft.lifePath ? (
           <section className="panel life-reveal entrance">
-            <p className="eyebrow">你的 Life Path</p>
+            <p className="eyebrow">你的生命靈數</p>
             <div className="number-orbit" aria-label={`生命靈數 ${draft.lifePath.value}`}>
               <span>{draft.lifePath.value}</span>
               <small>{lifePathContent.label}</small>
@@ -374,16 +535,11 @@ function AssessmentApp() {
               <div><small>容易發光</small><p>{lifePathContent.strengths[0]}</p></div>
               <div><small>容易耗能</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
-            {draft.birthProfile ? <div className="birth-profile-compact">
-              <small>出生結構快照</small>
-              <div className="birth-profile-cards">
-                <div><b>{draft.birthProfile.pyramid.main}</b><span>金字塔核心數 O</span></div>
-                <div><b>{draft.birthProfile.pyramid.outerComposite}</b><span>外顯綜合 M</span></div>
-                <div><b>{draft.birthProfile.pyramid.innerComposite}</b><span>內在綜合 N</span></div>
-                <div><b>{draft.birthProfile.currentStage.number ?? '—'}</b><span>{draft.birthProfile.currentStage.label}</span></div>
-              </div>
-            </div> : null}
-            <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'resonance' })}>這段有沒有打中你？</button>
+            {draft.birthProfile ? <BirthProfileCards birthProfile={draft.birthProfile} /> : null}
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'resonance' })}>這段有沒有打中你？</button>
+            </div>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
         ) : null}
@@ -424,14 +580,17 @@ function AssessmentApp() {
                 </div>
               </div>
             ) : null}
-            <button
-              className="primary-button"
-              disabled={!draft.lifePathResonance || !draft.lifePathTopResonance}
-              type="button"
-              onClick={() => patchDraft({ step: 'transition' })}
-            >
-              前往第二面鏡子
-            </button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button
+                className="primary-button"
+                disabled={!draft.lifePathResonance || !draft.lifePathTopResonance}
+                type="button"
+                onClick={() => patchDraft({ step: 'transition' })}
+              >
+                前往第二面鏡子
+              </button>
+            </div>
           </section>
         ) : null}
 
@@ -441,12 +600,15 @@ function AssessmentApp() {
             <h1>接著，看看什麼事情讓你想投入</h1>
             <p className="lede">接下來有 18 題。沒有標準答案，請依你平常最接近的狀態作答。</p>
             <div className="mirror-row" aria-hidden="true"><span>做</span><span>想</span><span>創</span><span>幫</span><span>帶</span><span>整</span></div>
-            <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'riasec' })}>開始回答</button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'riasec' })}>開始回答</button>
+            </div>
           </section>
         ) : null}
 
         {draft.step === 'riasec' ? (
-          <RiasecQuestionStep index={completedAnswers} onAnswer={answerRiasec} />
+          <RiasecQuestionStep index={completedAnswers} onAnswer={answerRiasec} onBack={goBack} />
         ) : null}
 
         {draft.step === 'energy' ? (
@@ -465,14 +627,17 @@ function AssessmentApp() {
                 </ChoiceButton>
               ))}
             </div>
-            <button
-              className="primary-button"
-              disabled={!draft.subjectiveDriver}
-              type="button"
-              onClick={() => patchDraft({ step: 'riasec-result' })}
-            >
-              看看活動偏好結果
-            </button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button
+                className="primary-button"
+                disabled={!draft.subjectiveDriver}
+                type="button"
+                onClick={() => patchDraft({ step: 'riasec-result' })}
+              >
+                看看活動偏好結果
+              </button>
+            </div>
           </section>
         ) : null}
 
@@ -482,26 +647,7 @@ function AssessmentApp() {
             <h1>你最常選擇投入的三種方式</h1>
             <div className="results-layout">
               <RadarChart scores={riasecResult.scores} />
-              <div className="score-summary">
-                <p className="top-code">{riasecResult.top3Code}</p>
-                <div className="top-cards">
-                  {riasecResult.top3.map((code) => (
-                    <div className="top-card" key={code} style={{ '--accent': RIASEC_META[code].color } as CSSProperties}>
-                      <span>{code}</span>
-                      <p>{RIASEC_META[code].name}</p>
-                      <small>{RIASEC_META[code].verb} · {riasecResult.scores[code].normalized}</small>
-                    </div>
-                  ))}
-                </div>
-                <dl className="score-list">
-                  {Object.values(riasecResult.scores).map((score) => (
-                    <div key={score.code}>
-                      <dt>{score.code} · {RIASEC_META[score.code].name}</dt>
-                      <dd><span style={{ width: `${score.normalized}%` }} />{score.normalized}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
+              <RiasecScoreSummary riasecResult={riasecResult} />
             </div>
             {subjectiveComparison ? (
               <div className="reflection-card">
@@ -509,7 +655,10 @@ function AssessmentApp() {
                 <p>{subjectiveComparison.text}</p>
               </div>
             ) : null}
-            <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'talent-usage' })}>看看第三面鏡子</button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'talent-usage' })}>看看第三面鏡子</button>
+            </div>
           </section>
         ) : null}
 
@@ -525,7 +674,10 @@ function AssessmentApp() {
                 </ChoiceButton>
               ))}
             </div>
-            <button className="primary-button" disabled={!draft.talentUsage} type="button" onClick={() => patchDraft({ step: 'priorities' })}>繼續</button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button className="primary-button" disabled={!draft.talentUsage} type="button" onClick={() => patchDraft({ step: 'priorities' })}>繼續</button>
+            </div>
           </section>
         ) : null}
 
@@ -583,21 +735,24 @@ function AssessmentApp() {
                 </label>
               </fieldset>
             ) : null}
-            <button
-              className="primary-button"
-              disabled={draft.priorities.length === 0 || !draft.explorationInterest}
-              type="button"
-              onClick={() => { void completeAssessment(); }}
-            >
-              {isSaving ? '正在安全保存…' : '整理我的三面鏡子'}
-            </button>
+            <div className="action-row">
+              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+              <button
+                className="primary-button"
+                disabled={draft.priorities.length === 0 || !draft.explorationInterest}
+                type="button"
+                onClick={() => { void completeAssessment(); }}
+              >
+                {isSaving ? '正在安全保存…' : '整理我的三面鏡子'}
+              </button>
+            </div>
             {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           </section>
         ) : null}
 
         {draft.step === 'report' && lifePathContent && riasecResult ? (
           <section className="panel report-panel entrance">
-            <p className="eyebrow">你的本地探索摘要</p>
+            <p className="eyebrow">你的探索摘要</p>
             <h1>把三面鏡子放在一起看</h1>
             <p className="lede">這裡呈現的是你提供的回答與計算結果；它們可以成為你接下來觀察自己的線索。</p>
             <div className="report-grid">
@@ -607,12 +762,37 @@ function AssessmentApp() {
               <article><small>第三面鏡子 · 天賦使用感</small><strong>{draft.talentUsage ?? '—'}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
               <article><small>目前最關注</small><strong>{draft.priorities.join('、')}</strong><p>探索意願：{draft.explorationInterest}</p></article>
             </div>
+
+            {draft.birthProfile ? <BirthProfileCards birthProfile={draft.birthProfile} /> : null}
+
+            <div className="results-layout" style={{ marginTop: 32 }}>
+              <RadarChart scores={riasecResult.scores} />
+              <RiasecScoreSummary riasecResult={riasecResult} />
+            </div>
+
             {subjectiveComparison ? (
               <div className="reflection-card"><small>{subjectiveComparison.title}</small><p>{subjectiveComparison.text}</p></div>
             ) : null}
             <div className="reflection-card"><small>留給自己的問題</small><p>{lifePathContent.reflectionQuestion}</p></div>
-            <p className="local-note">目前結果暫存在這個瀏覽器，方便刷新後繼續查看；按「重新開始一輪」後會清除未完成的本機紀錄。</p>
-            <button className="secondary-button" type="button" onClick={returnHome}>重新開始一輪</button>
+            {persistenceError ? (
+              <div className="reflection-card" style={{ borderLeftColor: '#a95143', marginTop: 20 }}>
+                <small style={{ color: '#a95143' }}>保存提示</small>
+                <p style={{ fontSize: '15px' }}>{persistenceError}</p>
+                <button
+                  className="primary-button"
+                  style={{ marginTop: 14 }}
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => { void completeAssessment(); }}
+                >
+                  {isSaving ? '正在安全保存…' : '重新嘗試保存並生成 AI 解析'}
+                </button>
+              </div>
+            ) : null}
+            <div className="action-row" style={{ marginTop: 24 }}>
+              <button className="text-button" type="button" onClick={goBack}>← 回上一步修改</button>
+              <button className="secondary-button" type="button" onClick={returnHome}>重新開始一輪</button>
+            </div>
             <p className="disclaimer">{DISCLAIMER}</p>
           </section>
         ) : null}
@@ -647,16 +827,24 @@ function ServerReport({
           <p className="lede">這裡呈現的是已保存的回答與伺服器重新驗證的計算結果；它們可以成為你接下來觀察自己的線索。</p>
           <div className="report-grid">
             <article><small>第一面鏡子 · 自我反思</small><strong>{assessment.lifePath.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
-            {assessment.birthProfile ? <article><small>出生結構這面鏡子</small><strong>核心 {assessment.birthProfile.pyramid.main} · 外顯 {assessment.birthProfile.pyramid.outerComposite} · 內在 {assessment.birthProfile.pyramid.innerComposite}</strong><p>{assessment.birthProfile.currentStage.label} · {assessment.birthProfile.currentStage.number ?? '—'}</p></article> : null}
             <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{assessment.riasecResult.top3Code}</strong><p>{assessment.riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
             <article><small>本人能量線索</small><strong>{energyLabel(assessment.subjectiveDriver)}</strong><p>{energyComparison}</p></article>
             <article><small>第三面鏡子 · 天賦使用感</small><strong>{assessment.talentUsage}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
             <article><small>目前最關注</small><strong>{assessment.priorities.join('、')}</strong><p>探索意願：{assessment.explorationInterest}</p></article>
           </div>
+
+          {assessment.birthProfile ? <BirthProfileCards birthProfile={assessment.birthProfile} /> : null}
+
           <div className="results-layout" style={{ marginTop: 32 }}>
             <RadarChart scores={assessment.riasecResult.scores} />
-            <div className="reflection-card"><small>{energyComparison}</small><p>你的主觀能量線索與活動偏好都是值得繼續觀察的資料，不需要判斷哪一個更正確。</p></div>
+            <RiasecScoreSummary riasecResult={assessment.riasecResult} />
           </div>
+
+          <div className="reflection-card" style={{ marginTop: 24 }}>
+            <small>{energyComparison}</small>
+            <p>你的主觀能量線索與活動偏好都是值得繼續觀察的資料，不需要判斷哪一個更正確。</p>
+          </div>
+
           {report ? (
             <div className="reflection-card" style={{ marginTop: 26 }}>
               <small>你的三個高重複訊號</small>
@@ -672,10 +860,17 @@ function ServerReport({
               <small>給自己的下一個問題</small>
               <p>{report.reflection_question}</p>
             </div>
-          ) : <p className="local-note">AI 綜合解析稍後即可查看，你的測驗結果已保存。</p>}
+          ) : (
+            <div className="reflection-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
+              <small>AI 綜合解析</small>
+              <p style={{ fontSize: '15px', marginTop: '10px' }}>✨ 正在為你生成專屬特質解析，若稍有延遲，可稍後重新整理查看…</p>
+            </div>
+          )}
           {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           {assessment.assessmentMode === 'co_present' ? <GuestSaveActions assessment={assessment} /> : null}
-          <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
+          <div className="action-row" style={{ marginTop: 28 }}>
+            <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
+          </div>
           <p className="disclaimer">{DISCLAIMER}</p>
         </section>
       </section>
@@ -743,7 +938,15 @@ function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => v
   );
 }
 
-function RiasecQuestionStep({ index, onAnswer }: { index: number; onAnswer: (answer: RiasecAnswer) => void }) {
+function RiasecQuestionStep({
+  index,
+  onAnswer,
+  onBack,
+}: {
+  index: number;
+  onAnswer: (answer: RiasecAnswer) => void;
+  onBack?: () => void;
+}) {
   const question = RIASEC_QUESTIONS[index];
   if (!question) return null;
   const progress = ((index + 1) / RIASEC_QUESTIONS.length) * 100;
@@ -760,7 +963,14 @@ function RiasecQuestionStep({ index, onAnswer }: { index: number; onAnswer: (ans
           </button>
         ))}
       </div>
-      <p className="question-hint">選擇後會自動前往下一題。</p>
+      <div className="question-actions">
+        {onBack ? (
+          <button className="back-button" type="button" onClick={onBack}>
+            ← {index > 0 ? '回上一題' : '回上一步'}
+          </button>
+        ) : <span />}
+        <p className="question-hint" style={{ margin: 0 }}>選擇後會自動前往下一題。</p>
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MiniMaxAIProvider, VertexAIProvider, generateValidatedReport } from './ai';
+import { VertexAIProvider, generateValidatedReport } from './ai';
 import { ProductionMiniMaxAIProvider, ProductionVertexAIProvider } from './productionAI';
 import { saveAssessment } from './assessment';
 import type { Identity } from './contracts';

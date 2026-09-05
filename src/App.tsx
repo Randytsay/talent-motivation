@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
+import { AIHighlightedText, AIInsightBlock } from './components/AIInsight';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
 import { PresenterPage } from './components/PresenterPage';
@@ -122,8 +123,8 @@ function PublicSharePage() {
         <article><small>Life Path</small><strong>{share.lifePath}</strong></article>
         <article><small>RIASEC Top 3</small><strong>{share.top3Code}</strong><p>{share.top3.join('、')}</p></article>
       </div>
-      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.join(' ') || '這份摘要目前沒有額外的重複線索。'}</p></div>
-      <p className="local-note">{share.summary}</p>
+      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.length ? share.repeatedSignals.map((signal, index) => <span key={`${signal}-${index}`}><AIHighlightedText text={signal} /> </span>) : '這份摘要目前沒有額外的重複線索。'}</p></div>
+      <p className="local-note"><AIHighlightedText text={share.summary} /></p>
       <a className="secondary-button public-share-home" href={share.landingUrl}>回到天賦原動力</a>
     </> : !error ? <p className="local-note">正在準備精華摘要…</p> : null}
   </section></main>;
@@ -235,9 +236,13 @@ function AssessmentApp() {
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
   const [completedAssessment, setCompletedAssessment] = useState<ClientAssessment | null>(null);
+  const [previousAssessment, setPreviousAssessment] = useState<ClientAssessment | null>(null);
+  const [previousReport, setPreviousReport] = useState<AIReport | null>(null);
+  const [isRestoringPrevious, setIsRestoringPrevious] = useState(false);
   const [serverReport, setServerReport] = useState<AIReport | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const completedAnswers = Object.keys(draft.riasecAnswers).length;
   const riasecResult = useMemo(() => {
     if (completedAnswers !== RIASEC_QUESTIONS.length) return null;
@@ -253,19 +258,26 @@ function AssessmentApp() {
     if (auth.status !== 'authenticated' && auth.status !== 'mock') return;
     let active = true;
     async function restoreCompletedAssessment() {
+      setIsRestoringPrevious(true);
       try {
         const { assessment } = await getLatestAssessment();
         if (!assessment || !active) return;
-        setCompletedAssessment(assessment);
+        setPreviousAssessment(assessment);
         localAssessmentDraftRepository.clear();
         try {
           const { report } = await getReport(assessment.assessmentId);
-          if (active) setServerReport(report);
+          if (active) setPreviousReport(report);
         } catch {
-          // A deterministic report can render even while AI generation is pending.
+          // If the assessment has no report yet, open its recovery view so retry is immediate.
+          if (active) {
+            setCompletedAssessment(assessment);
+            setServerReport(null);
+          }
         }
       } catch {
         if (active) setPersistenceError('暫時無法讀取已保存的結果；未完成的本機草稿仍可繼續。');
+      } finally {
+        if (active) setIsRestoringPrevious(false);
       }
     }
     void restoreCompletedAssessment();
@@ -291,6 +303,13 @@ function AssessmentApp() {
     setServerReport(null);
     setCompletedAssessment(null);
     setDraft(createEmptyDraft());
+  }
+
+  function viewPrevious() {
+    if (!previousAssessment) return;
+    setPersistenceError(null);
+    setCompletedAssessment(previousAssessment);
+    setServerReport(previousReport);
   }
 
   function revealLifePath() {
@@ -426,18 +445,30 @@ function AssessmentApp() {
         ...(eventId ? { eventId, presenterConsent: draft.presenterConsent === true } : {}),
       } satisfies AssessmentInput);
       setCompletedAssessment(assessment);
+      setPreviousAssessment(assessment);
+      setPreviousReport(null);
       localAssessmentDraftRepository.clear();
-      try {
-        const { report } = await generateReport(assessment.assessmentId);
-        setServerReport(report);
-      } catch (error) {
-        setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析稍後即可查看，你的測驗結果已保存。');
-      }
+      await requestReport(assessment.assessmentId);
     } catch (error) {
       setPersistenceError(error instanceof ApiError ? error.message : '暫時無法保存結果；你的本機草稿會保留。');
       patchDraft({ step: 'report' });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function requestReport(assessmentId: string) {
+    if (isGeneratingReport) return;
+    setIsGeneratingReport(true);
+    setPersistenceError(null);
+    try {
+      const { report } = await generateReport(assessmentId);
+      setServerReport(report);
+      setPreviousReport(report);
+    } catch (error) {
+      setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析暫時無法完成；你的測驗結果已保存，請稍後重試。');
+    } finally {
+      setIsGeneratingReport(false);
     }
   }
 
@@ -458,7 +489,7 @@ function AssessmentApp() {
   }, [draft.subjectiveDriver, riasecResult]);
 
   if (completedAssessment) {
-    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} onRestart={returnHome} />;
+    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} isGenerating={isGeneratingReport} onRetry={() => void requestReport(completedAssessment.assessmentId)} onRestart={returnHome} />;
   }
 
   return (
@@ -466,8 +497,15 @@ function AssessmentApp() {
       {draft.step !== 'landing' && draft.step !== 'report' ? (
         <ProgressHeader step={draft.step} onHome={returnHome} onBack={goBack} canBack={draft.step !== 'consent'} />
       ) : null}
-      <section className="journey" aria-live="polite">
-        {draft.step === 'landing' ? <Landing auth={auth} onLogin={() => { window.location.assign('/api/auth/line/start'); }} onStart={startNew} /> : null}
+      <section className={`journey ${draft.step === 'landing' ? 'journey--landing' : ''}`} aria-live="polite">
+        {draft.step === 'landing' ? <Landing
+          auth={auth}
+          onLogin={() => { window.location.assign('/api/auth/line/start'); }}
+          onStart={startNew}
+          previousAssessment={previousAssessment}
+          isRestoringPrevious={isRestoringPrevious}
+          onViewPrevious={viewPrevious}
+        /> : null}
 
         {draft.step === 'consent' ? (
           <section className="panel panel--narrow entrance">
@@ -805,11 +843,15 @@ function ServerReport({
   assessment,
   report,
   persistenceError,
+  isGenerating,
+  onRetry,
   onRestart,
 }: {
   assessment: ClientAssessment;
   report: AIReport | null;
   persistenceError: string | null;
+  isGenerating: boolean;
+  onRetry: () => void;
   onRestart: () => void;
 }) {
   const lifePathContent = LIFE_PATH_CONTENT[assessment.lifePath.value];
@@ -846,35 +888,79 @@ function ServerReport({
           </div>
 
           {report ? (
-            <div className="reflection-card" style={{ marginTop: 26 }}>
-              <small>你的三個高重複訊號</small>
-              <p>{report.repeated_signals.join(' ')}</p>
-              <small>出生結構這面鏡子</small>
-              <p>{report.birth_profile_summary}</p>
-              <small>可能的原動力</small>
-              <p>{report.motivator_summary}</p>
-              <small>可能還沒被充分使用的部分</small>
-              <p>{report.unused_potential}</p>
-              {report.possible_tensions?.length ? <><small>值得留意的張力</small><p>{report.possible_tensions.join(' ')}</p></> : null}
-              {report.exploration_directions?.length ? <><small>可以先試的小方向</small><p>{report.exploration_directions.join(' ')}</p></> : null}
-              <small>給自己的下一個問題</small>
-              <p>{report.reflection_question}</p>
-            </div>
+            <section className="ai-report" aria-labelledby="ai-report-title">
+              <header className="ai-report__header">
+                <div>
+                  <small>AI 綜合解析</small>
+                  <h2 id="ai-report-title">先讀這些重點，再回到生活裡驗證</h2>
+                </div>
+                <span className="ai-report__note">自我反思參考</span>
+              </header>
+              <AIInsightBlock label="先看這一句" value={report.summary} tone="summary" />
+              <AIInsightBlock label="反覆出現的線索" value={report.repeated_signals} tone="signals" />
+              <AIInsightBlock label="出生結構這面鏡子" value={report.birth_profile_summary} tone="profile" />
+              <AIInsightBlock label="可能的原動力" value={report.motivator_summary} tone="motivator" />
+              <AIInsightBlock label="可以再發揮的空間" value={report.unused_potential} tone="potential" />
+              {report.possible_tensions?.length ? <AIInsightBlock label="同時在乎的兩件事" value={report.possible_tensions} tone="tension" /> : null}
+              {report.exploration_directions?.length ? <AIInsightBlock label="可以先試的小方向" value={report.exploration_directions} tone="exploration" /> : null}
+              <AIInsightBlock label="給自己的下一個問題" value={report.reflection_question} tone="question" />
+            </section>
           ) : (
-            <div className="reflection-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
-              <small>AI 綜合解析</small>
-              <p style={{ fontSize: '15px', marginTop: '10px' }}>✨ 正在為你生成專屬特質解析，若稍有延遲，可稍後重新整理查看…</p>
-            </div>
+            <AIGenerationProgress isGenerating={isGenerating} />
           )}
+          {!report ? <button className="primary-button" type="button" disabled={isGenerating} onClick={onRetry}>
+            {isGenerating ? '正在產生 AI 解析…' : '重新產生 AI 解析'}
+          </button> : null}
           {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           {assessment.assessmentMode === 'co_present' ? <GuestSaveActions assessment={assessment} /> : null}
           <div className="action-row" style={{ marginTop: 28 }}>
-            <button className="secondary-button" type="button" onClick={onRestart}>重新開始一輪</button>
+            <button className="secondary-button" type="button" disabled={isGenerating} onClick={onRestart}>重新開始一輪</button>
           </div>
           <p className="disclaimer">{DISCLAIMER}</p>
         </section>
       </section>
     </main>
+  );
+}
+
+const AI_PROGRESS_STAGES = ['正在整理你的回答', '正在比對三面鏡子的線索', '正在把發現寫成你的語句'];
+
+function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
+  const [stageIndex, setStageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isGenerating) return undefined;
+    const timer = window.setInterval(() => {
+      setStageIndex((current) => (current + 1) % AI_PROGRESS_STAGES.length);
+    }, 2200);
+    return () => window.clearInterval(timer);
+  }, [isGenerating]);
+
+  if (!isGenerating) {
+    return (
+      <div className="reflection-card ai-progress-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
+        <small>AI 綜合解析</small>
+        <p style={{ fontSize: '15px', marginTop: '10px' }}>測驗結果已保存，AI 解析尚未完成。可以重新產生，不必再做一次測驗。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ai-progress-card" role="status" aria-live="polite" aria-atomic="true">
+      <div className="ai-progress-card__header">
+        <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
+        <div>
+          <small>AI 綜合解析</small>
+          <p>{AI_PROGRESS_STAGES[stageIndex]}…</p>
+        </div>
+      </div>
+      <div className="ai-progress-bar" role="progressbar" aria-label="AI 正在整理你的探索線索" aria-valuemin={0} aria-valuemax={100}>
+        <span />
+      </div>
+      <div className="ai-progress-steps" aria-hidden="true">
+        {AI_PROGRESS_STAGES.map((stage, index) => <span className={index === stageIndex ? 'is-active' : ''} key={stage}>{stage.replace('正在', '')}</span>)}
+      </div>
+    </div>
   );
 }
 
@@ -914,25 +1000,55 @@ function GuestSaveActions({ assessment }: { assessment: ClientAssessment }) {
   </section>;
 }
 
-function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => void; onStart: () => void }) {
+function Landing({
+  auth,
+  onLogin,
+  onStart,
+  previousAssessment,
+  isRestoringPrevious,
+  onViewPrevious,
+}: {
+  auth: AuthState;
+  onLogin: () => void;
+  onStart: () => void;
+  previousAssessment: ClientAssessment | null;
+  isRestoringPrevious: boolean;
+  onViewPrevious: () => void;
+}) {
   const needsLogin = auth.status === 'unauthenticated';
   return (
-    <section className="landing entrance">
+    <section className="landing landing--hero entrance">
+      <picture className="landing-backdrop" aria-hidden="true">
+        <source media="(max-width: 720px)" srcSet="/landing-hero-mobile.webp" />
+        <img src="/landing-hero.webp" alt="" width="1600" height="901" fetchPriority="high" decoding="async" />
+      </picture>
+      <div className="landing-wash" aria-hidden="true" />
+      <p className="landing-corner-copy landing-corner-copy--left" aria-hidden="true">
+        EXPLORE<br />YOUR NATURE<br /><span>LIVE A BRIGHTER YOU</span>
+      </p>
+      <p className="landing-corner-copy landing-corner-copy--right" aria-hidden="true">
+        認識自己<br />看見可能<br />創造屬於你的美好人生
+      </p>
       <div className="landing-copy">
         <p className="eyebrow">三面鏡子，不替你下定義</p>
         <h1>看見天賦，<br /><em>找到原動力。</em></h1>
         <p className="landing-lede">看見天賦・找到原動力・增加人生的選擇。從一個自我反思入口、一組活動偏好，和你此刻的感受開始。</p>
+        {isRestoringPrevious ? <p className="landing-previous-status" role="status">正在確認你是否有上次的探索結果…</p> : null}
         <button className="primary-button" disabled={auth.status === 'loading'} type="button" onClick={needsLogin ? onLogin : onStart}>
           {auth.status === 'loading' ? '正在確認身份…' : needsLogin ? '使用 LINE 登入後開始探索' : '開始探索我的天賦'}
         </button>
+        {previousAssessment ? (
+          <div className="landing-previous">
+            <small>上次的探索已經保存</small>
+            <p>你可以先回顧上次的線索，也可以重新回答，看看此刻的自己有什麼新發現。</p>
+            <button className="secondary-button" type="button" onClick={onViewPrevious}>查看上次結果</button>
+          </div>
+        ) : null}
         {auth.status === 'unavailable' ? <p className="disclaimer">目前以本機草稿模式進行；連線恢復後即可安全保存結果。</p> : null}
         <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
       </div>
-      <div className="mirror-composition" aria-hidden="true">
-        <span className="mirror mirror--one"><b>1</b><small>自我</small></span>
-        <span className="mirror mirror--two"><b>2</b><small>偏好</small></span>
-        <span className="mirror mirror--three"><b>3</b><small>此刻</small></span>
-        <i className="composition-line" />
+      <div className="landing-signature" aria-hidden="true">
+        <span>Birth Profile</span><b>×</b><span>RIASEC</span><b>×</b><span>Reflection</span>
       </div>
     </section>
   );

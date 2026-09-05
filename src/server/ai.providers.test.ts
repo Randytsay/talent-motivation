@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import { VertexAIProvider, generateValidatedReport } from './ai';
 import { ProductionMiniMaxAIProvider, ProductionVertexAIProvider } from './productionAI';
 import { saveAssessment } from './assessment';
@@ -106,9 +107,14 @@ describe('selectable live AI providers', () => {
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer sk-cp-test');
       requestBody = String(init?.body);
       const parsedBody = JSON.parse(requestBody) as Record<string, unknown>;
+      const system = (parsedBody.messages as Array<{ content: string }>)[0].content;
+      for (const key of ['repeated_signals', 'birth_profile_summary', 'motivator_summary', 'possible_tensions', 'unused_potential', 'exploration_directions', 'reflection_question', 'summary']) {
+        expect(system).toContain(`"${key}"`);
+      }
+      expect(system).toContain('"additionalProperties":false');
       expect(parsedBody.thinking).toEqual({ type: 'disabled' });
       expect(parsedBody.reasoning_split).toBe(true);
-      expect(parsedBody.max_completion_tokens).toBe(1600);
+      expect(parsedBody.max_completion_tokens).toBe(4096);
       return new Response(JSON.stringify({
         choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(validReport) } }],
         base_resp: { status_code: 0 },
@@ -132,5 +138,55 @@ describe('selectable live AI providers', () => {
     expect(() => loadRuntimeConfig({
       ...liveBase(), LLM_PROVIDER: 'unknown', LLM_MODEL: 'x',
     })).toThrow('LLM_PROVIDER');
+  });
+});
+
+
+describe('production report failure diagnostics', () => {
+  it('exercises the actual Vertex OAuth and report request with a signed assertion', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { assessment } = await saveAssessment(payload(), identity, new InMemoryRepositories());
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input) === 'https://oauth2.googleapis.com/token') {
+        const form = new URLSearchParams(String(init?.body));
+        expect(form.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer');
+        expect(form.get('assertion')?.split('.')).toHaveLength(3);
+        return Response.json({ access_token: 'test-token', expires_in: 3600 });
+      }
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-token');
+      const body = JSON.parse(String(init?.body));
+      expect(body.generationConfig.responseSchema.required).toHaveLength(8);
+      expect(body.generationConfig.maxOutputTokens).toBe(4096);
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'LOW' });
+      return Response.json({ candidates: [{ content: { parts: [{ thought: true, text: 'SENSITIVE-THOUGHT' }, { text: JSON.stringify(validReport) }] } }] });
+    });
+    const provider = new ProductionVertexAIProvider({ projectId: 'test-project', location: 'global', model: 'gemini-3.7-flash',
+      serviceAccountJson: JSON.stringify({ client_email: 'test@example.test', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) }),
+    }, fetcher);
+    await expect(provider.generate(assessment)).resolves.toMatchObject(validReport);
+    await provider.generate(assessment);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    fetcher.mockResolvedValueOnce(Response.json({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: JSON.stringify(validReport) }] } }] }));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(provider.generate(assessment)).rejects.toMatchObject({ code: 'vertex_output_truncated' });
+      expect(JSON.stringify(log.mock.calls)).not.toContain('SENSITIVE-THOUGHT');
+    } finally { log.mockRestore(); }
+  });
+
+  it.each([
+    ['wrong fields', { choices: [{ message: { content: '{"private-note":"SENSITIVE-CONTENT"}' } }] }, 'ai_invalid_schema'],
+    ['malformed JSON', { choices: [{ message: { content: 'SENSITIVE-CONTENT' } }] }, 'minimax_invalid_response'],
+    ['truncated JSON', { choices: [{ finish_reason: 'length', message: { content: JSON.stringify(validReport) } }] }, 'minimax_output_truncated'],
+    ['reasoning only', { choices: [{ message: { reasoning_content: 'SENSITIVE-CONTENT' } }] }, 'minimax_invalid_response'],
+  ])('rejects %s and records only safe diagnostics', async (_name, body, code) => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { assessment } = await saveAssessment(payload(), identity, new InMemoryRepositories());
+      const provider = new ProductionMiniMaxAIProvider({ apiKey: 'secret-key', model: 'MiniMax-M3', baseUrl: 'https://api.minimaxi.com/v1' }, async () => Response.json(body));
+      await expect(provider.generate(assessment)).rejects.toMatchObject({ code });
+      expect(log).toHaveBeenCalled();
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/SENSITIVE-CONTENT|secret-key|1978-11-05/);
+    } finally { log.mockRestore(); }
   });
 });

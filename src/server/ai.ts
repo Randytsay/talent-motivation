@@ -70,8 +70,8 @@ export class MockAIProvider implements AIProvider {
     const top = assessment.riasecResult.top3Code;
     return validateAIReport({
       repeated_signals: [
-        `活動偏好結果中的 ${top}，可能是你投入時容易感到有精神的線索。`,
-        `你選擇「${assessment.subjectiveDriver}」作為能量來源，這讓你的主觀感受有了清楚的入口。`,
+        `【重點】活動偏好結果中的 ${top}【/重點】，可能是你投入時容易感到有精神的線索。`,
+        `【重點】你選擇「${assessment.subjectiveDriver}」作為能量來源【/重點】，這讓你的主觀感受有了清楚的入口。`,
       ],
       birth_profile_summary: assessment.birthProfile
         ? `從出生結構的核心數 ${assessment.birthProfile.pyramid.main} 這個角度看，你可能在變化與自我理解之間找到一些熟悉感；請用生活經驗來驗證它。`
@@ -81,7 +81,7 @@ export class MockAIProvider implements AIProvider {
       unused_potential: '你已經有從線索中找出意義的能力；可以再把其中一個想法帶進小型實作，看看它如何在生活裡長出形狀。',
       exploration_directions: ['接下來一週，在工作中挑一個可改善的小流程，記下投入前後的精神變化。'],
       reflection_question: '最近哪一個時刻，你一邊完成責任、一邊仍感到自己有選擇？',
-      summary: `你已經整理出 ${top} 與主觀回饋這些重要線索，代表你願意花時間理解自己。接下來把它當成一份可以慢慢驗證的邀請，不必急著替自己下結論。`,
+      summary: `【重點】你已經整理出 ${top} 與主觀回饋這些重要線索【/重點】，代表你願意花時間理解自己。接下來把它當成一份可以慢慢驗證的邀請，不必急著替自己下結論。`,
     });
   }
 }
@@ -116,6 +116,7 @@ const REPORT_SYSTEM_PROMPT = [
   '探索方向優先寫現職調整與小型副專案，不可導向特定商業機會。',
   '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
   '語氣請像一位溫和、具體的陪伴者：先指出回答中看得見的線索，再說它可能代表什麼，讓人感到被理解而不是被評分。全文使用第二人稱「你」，多用「可能、似乎、可以觀察」，避免冷硬的測驗報告語氣。',
+  '讓讀者感到「這段真的在說我」：每個段落至少連回一個 facts 中的具體線索（例如 Top3 向度、主觀能量選擇、優先關注或反思主題），說明你如何從該線索得到這個觀察；不要只寫任何人都適用的稱讚。不可捏造 facts 沒有提供的經歷。',
   'summary 必須是 2 句以內的溫暖開場：先肯定一個從 facts 看見的努力或特質，再說這份報告是邀請你驗證的線索，不是標籤或定論。',
   'repeated_signals 必須提供 2 至 3 個獨立項目，每項只寫一個訊號，20 至 55 字；不要把多個訊號用空格、頓號或分號串在同一項。',
   'birth_profile_summary 與 motivator_summary 各用 1 至 2 句，將數字或類型當成反思角度，連回可感受到的生活經驗；不要寫成命定或人格判決。',

@@ -132,6 +132,11 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .landing h1 em { color: var(--clay); font-style: normal; }
 .landing-lede { max-width: 580px; margin: 26px auto 0; color: #384858; font-size: 18px; line-height: 1.9; }
 .landing .primary-button { margin-top: 30px; }
+.landing-previous-status { margin: 18px 0 -18px; color: #5f6875; font-size: 14px; line-height: 1.7; }
+.landing-previous { margin-top: 22px; padding: 15px 18px 16px; border: 1px solid rgba(181, 154, 102, .42); border-radius: 16px; background: rgba(255, 250, 239, .74); text-align: left; }
+.landing-previous small { color: var(--gold-deep); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.landing-previous p { margin: 7px 0 0; color: #4d5965; font-size: 14px; line-height: 1.75; }
+.landing-previous .secondary-button { margin-top: 12px; min-height: 42px; padding: 9px 16px; font-size: 14px; }
 .landing-footnote { margin-top: 18px; color: #506050; font-size: 14px; letter-spacing: .08em; }
 .landing-corner-copy { position: absolute; z-index: 1; margin: 0; color: rgba(36, 50, 71, .7); font-family: 'Noto Serif TC', serif; font-size: 12px; line-height: 2; letter-spacing: .24em; }
 .landing-corner-copy span { font-family: 'Noto Sans TC', sans-serif; font-size: 10px; letter-spacing: .28em; }
@@ -435,6 +440,25 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .ai-insight--exploration { border-left-color: #536b85; background: #f5f8fb; }
 .ai-insight--question { border-left-color: #80643a; background: #fffaf1; }
 .ai-highlight { color: var(--ink-strong); font-weight: 800; background: linear-gradient(transparent 62%, rgba(232, 222, 201, .9) 0); }
+.ai-progress-card { margin-top: 26px; padding: 22px 24px 19px; border: 1px solid rgba(181, 154, 102, .45); border-radius: 16px; background: linear-gradient(135deg, #fffaf1, #f5f8fb); box-shadow: 0 12px 30px rgba(36, 50, 71, .07); }
+.ai-progress-card__header { display: flex; align-items: center; gap: 14px; text-align: left; }
+.ai-progress-card__header small { color: var(--gold-deep); font-size: 13px; font-weight: 700; letter-spacing: .09em; }
+.ai-progress-card__header p { margin: 5px 0 0; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; font-size: 19px; line-height: 1.5; }
+.ai-progress-orbit { position: relative; display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 1px solid rgba(159, 130, 80, .46); border-radius: 50%; background: rgba(255, 255, 255, .78); animation: ai-orbit-breathe 2.2s ease-in-out infinite; }
+.ai-progress-orbit::before, .ai-progress-orbit::after { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--clay); content: ''; }
+.ai-progress-orbit::before { top: 5px; right: 8px; }
+.ai-progress-orbit::after { bottom: 5px; left: 8px; background: var(--gold); }
+.ai-progress-orbit i { width: 13px; height: 13px; border: 2px solid var(--gold-deep); border-top-color: transparent; border-radius: 50%; animation: ai-orbit-spin 1.15s linear infinite; }
+.ai-progress-bar { position: relative; height: 7px; margin-top: 20px; overflow: hidden; border-radius: 999px; background: rgba(181, 154, 102, .2); }
+.ai-progress-bar span { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--clay), var(--gold)); animation: ai-progress-sweep 2.4s ease-in-out infinite; }
+.ai-progress-steps { display: flex; justify-content: space-between; gap: 10px; margin-top: 11px; color: #7b818b; font-size: 12px; line-height: 1.5; }
+.ai-progress-steps span { position: relative; padding-left: 13px; }
+.ai-progress-steps span::before { position: absolute; top: .5em; left: 0; width: 6px; height: 6px; border: 1px solid #b9b2a4; border-radius: 50%; content: ''; transform: translateY(-50%); }
+.ai-progress-steps span.is-active { color: var(--ink-strong); font-weight: 700; }
+.ai-progress-steps span.is-active::before { border-color: var(--clay); background: var(--clay); box-shadow: 0 0 0 4px rgba(166, 95, 72, .12); }
+@keyframes ai-orbit-breathe { 0%, 100% { transform: scale(.96); box-shadow: 0 0 0 0 rgba(166, 95, 72, .16); } 50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(166, 95, 72, 0); } }
+@keyframes ai-orbit-spin { to { transform: rotate(360deg); } }
+@keyframes ai-progress-sweep { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(290%); } }
 
 @media (max-width: 900px) {
   .results-layout { grid-template-columns: 1fr; }
@@ -457,6 +481,10 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .landing h1 { font-size: clamp(44px, 13.5vw, 60px); letter-spacing: -.055em; }
   .landing-lede { font-size: 17px; line-height: 1.9; }
   .landing .primary-button { width: 100%; margin-top: 26px; }
+  .landing-previous-status { margin: 15px 0 -14px; font-size: 14px; }
+  .landing-previous { margin-top: 18px; padding: 14px 15px 15px; }
+  .landing-previous p { font-size: 15px; line-height: 1.8; }
+  .landing-previous .secondary-button { width: 100%; margin-top: 11px; }
   .landing-corner-copy { display: none; }
   .landing-signature { right: 16px; bottom: 24px; left: 16px; justify-content: center; gap: 8px; font-size: 13px; letter-spacing: .08em; }
   .choice-grid--three { grid-template-columns: 1fr; }
@@ -490,5 +518,6 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 
 @media (prefers-reduced-motion: reduce) {
   .entrance { animation: none; }
+  .ai-progress-orbit, .ai-progress-orbit i, .ai-progress-bar span { animation: none; }
   * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }

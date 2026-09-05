@@ -236,6 +236,9 @@ function AssessmentApp() {
   const [draft, setDraft] = useState<AssessmentDraft>(() => localAssessmentDraftRepository.load() ?? createEmptyDraft());
   const [dateError, setDateError] = useState<string | null>(null);
   const [completedAssessment, setCompletedAssessment] = useState<ClientAssessment | null>(null);
+  const [previousAssessment, setPreviousAssessment] = useState<ClientAssessment | null>(null);
+  const [previousReport, setPreviousReport] = useState<AIReport | null>(null);
+  const [isRestoringPrevious, setIsRestoringPrevious] = useState(false);
   const [serverReport, setServerReport] = useState<AIReport | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -255,19 +258,26 @@ function AssessmentApp() {
     if (auth.status !== 'authenticated' && auth.status !== 'mock') return;
     let active = true;
     async function restoreCompletedAssessment() {
+      setIsRestoringPrevious(true);
       try {
         const { assessment } = await getLatestAssessment();
         if (!assessment || !active) return;
-        setCompletedAssessment(assessment);
+        setPreviousAssessment(assessment);
         localAssessmentDraftRepository.clear();
         try {
           const { report } = await getReport(assessment.assessmentId);
-          if (active) setServerReport(report);
+          if (active) setPreviousReport(report);
         } catch {
-          // A deterministic report can render even while AI generation is pending.
+          // If the assessment has no report yet, open its recovery view so retry is immediate.
+          if (active) {
+            setCompletedAssessment(assessment);
+            setServerReport(null);
+          }
         }
       } catch {
         if (active) setPersistenceError('暫時無法讀取已保存的結果；未完成的本機草稿仍可繼續。');
+      } finally {
+        if (active) setIsRestoringPrevious(false);
       }
     }
     void restoreCompletedAssessment();
@@ -293,6 +303,13 @@ function AssessmentApp() {
     setServerReport(null);
     setCompletedAssessment(null);
     setDraft(createEmptyDraft());
+  }
+
+  function viewPrevious() {
+    if (!previousAssessment) return;
+    setPersistenceError(null);
+    setCompletedAssessment(previousAssessment);
+    setServerReport(previousReport);
   }
 
   function revealLifePath() {
@@ -428,6 +445,8 @@ function AssessmentApp() {
         ...(eventId ? { eventId, presenterConsent: draft.presenterConsent === true } : {}),
       } satisfies AssessmentInput);
       setCompletedAssessment(assessment);
+      setPreviousAssessment(assessment);
+      setPreviousReport(null);
       localAssessmentDraftRepository.clear();
       await requestReport(assessment.assessmentId);
     } catch (error) {
@@ -445,6 +464,7 @@ function AssessmentApp() {
     try {
       const { report } = await generateReport(assessmentId);
       setServerReport(report);
+      setPreviousReport(report);
     } catch (error) {
       setPersistenceError(error instanceof ApiError ? error.message : 'AI 綜合解析暫時無法完成；你的測驗結果已保存，請稍後重試。');
     } finally {
@@ -478,7 +498,14 @@ function AssessmentApp() {
         <ProgressHeader step={draft.step} onHome={returnHome} onBack={goBack} canBack={draft.step !== 'consent'} />
       ) : null}
       <section className={`journey ${draft.step === 'landing' ? 'journey--landing' : ''}`} aria-live="polite">
-        {draft.step === 'landing' ? <Landing auth={auth} onLogin={() => { window.location.assign('/api/auth/line/start'); }} onStart={startNew} /> : null}
+        {draft.step === 'landing' ? <Landing
+          auth={auth}
+          onLogin={() => { window.location.assign('/api/auth/line/start'); }}
+          onStart={startNew}
+          previousAssessment={previousAssessment}
+          isRestoringPrevious={isRestoringPrevious}
+          onViewPrevious={viewPrevious}
+        /> : null}
 
         {draft.step === 'consent' ? (
           <section className="panel panel--narrow entrance">
@@ -879,10 +906,7 @@ function ServerReport({
               <AIInsightBlock label="給自己的下一個問題" value={report.reflection_question} tone="question" />
             </section>
           ) : (
-            <div className="reflection-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
-              <small>AI 綜合解析</small>
-              <p style={{ fontSize: '15px', marginTop: '10px' }}>{isGenerating ? '正在為你生成專屬特質解析…' : '測驗結果已保存，AI 解析尚未完成。可以重新產生，不必再做一次測驗。'}</p>
-            </div>
+            <AIGenerationProgress isGenerating={isGenerating} />
           )}
           {!report ? <button className="primary-button" type="button" disabled={isGenerating} onClick={onRetry}>
             {isGenerating ? '正在產生 AI 解析…' : '重新產生 AI 解析'}
@@ -896,6 +920,47 @@ function ServerReport({
         </section>
       </section>
     </main>
+  );
+}
+
+const AI_PROGRESS_STAGES = ['正在整理你的回答', '正在比對三面鏡子的線索', '正在把發現寫成你的語句'];
+
+function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
+  const [stageIndex, setStageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isGenerating) return undefined;
+    const timer = window.setInterval(() => {
+      setStageIndex((current) => (current + 1) % AI_PROGRESS_STAGES.length);
+    }, 2200);
+    return () => window.clearInterval(timer);
+  }, [isGenerating]);
+
+  if (!isGenerating) {
+    return (
+      <div className="reflection-card ai-progress-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
+        <small>AI 綜合解析</small>
+        <p style={{ fontSize: '15px', marginTop: '10px' }}>測驗結果已保存，AI 解析尚未完成。可以重新產生，不必再做一次測驗。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ai-progress-card" role="status" aria-live="polite" aria-atomic="true">
+      <div className="ai-progress-card__header">
+        <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
+        <div>
+          <small>AI 綜合解析</small>
+          <p>{AI_PROGRESS_STAGES[stageIndex]}…</p>
+        </div>
+      </div>
+      <div className="ai-progress-bar" role="progressbar" aria-label="AI 正在整理你的探索線索" aria-valuemin={0} aria-valuemax={100}>
+        <span />
+      </div>
+      <div className="ai-progress-steps" aria-hidden="true">
+        {AI_PROGRESS_STAGES.map((stage, index) => <span className={index === stageIndex ? 'is-active' : ''} key={stage}>{stage.replace('正在', '')}</span>)}
+      </div>
+    </div>
   );
 }
 
@@ -935,7 +1000,21 @@ function GuestSaveActions({ assessment }: { assessment: ClientAssessment }) {
   </section>;
 }
 
-function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => void; onStart: () => void }) {
+function Landing({
+  auth,
+  onLogin,
+  onStart,
+  previousAssessment,
+  isRestoringPrevious,
+  onViewPrevious,
+}: {
+  auth: AuthState;
+  onLogin: () => void;
+  onStart: () => void;
+  previousAssessment: ClientAssessment | null;
+  isRestoringPrevious: boolean;
+  onViewPrevious: () => void;
+}) {
   const needsLogin = auth.status === 'unauthenticated';
   return (
     <section className="landing landing--hero entrance">
@@ -954,9 +1033,17 @@ function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => v
         <p className="eyebrow">三面鏡子，不替你下定義</p>
         <h1>看見天賦，<br /><em>找到原動力。</em></h1>
         <p className="landing-lede">看見天賦・找到原動力・增加人生的選擇。從一個自我反思入口、一組活動偏好，和你此刻的感受開始。</p>
+        {isRestoringPrevious ? <p className="landing-previous-status" role="status">正在確認你是否有上次的探索結果…</p> : null}
         <button className="primary-button" disabled={auth.status === 'loading'} type="button" onClick={needsLogin ? onLogin : onStart}>
           {auth.status === 'loading' ? '正在確認身份…' : needsLogin ? '使用 LINE 登入後開始探索' : '開始探索我的天賦'}
         </button>
+        {previousAssessment ? (
+          <div className="landing-previous">
+            <small>上次的探索已經保存</small>
+            <p>你可以先回顧上次的線索，也可以重新回答，看看此刻的自己有什麼新發現。</p>
+            <button className="secondary-button" type="button" onClick={onViewPrevious}>查看上次結果</button>
+          </div>
+        ) : null}
         {auth.status === 'unavailable' ? <p className="disclaimer">目前以本機草稿模式進行；連線恢復後即可安全保存結果。</p> : null}
         <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
       </div>

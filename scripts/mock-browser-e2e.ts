@@ -135,6 +135,7 @@ async function main() {
     }, { times: 1 });
     await desktop.getByRole('button', { name: '重新產生 AI 解析' }).click();
     assert.equal(await desktop.getByRole('button', { name: '正在產生 AI 解析…' }).isDisabled(), true);
+    await desktop.getByText('正在整理你的回答…').waitFor();
     releaseRetry();
     await desktop.getByText('反覆出現的線索').waitFor();
     assert.equal(await desktop.getByRole('button', { name: '重新產生 AI 解析' }).count(), 0);
@@ -146,11 +147,12 @@ async function main() {
 
     console.log('E2E: verifying an event-scoped assessment with explicit Presenter consent');
     await desktop.goto(`${baseUrl}/?eventId=${eventId}`);
-    await desktop.getByText('你的探索摘要').waitFor();
-    await desktop.getByRole('button', { name: '重新開始一輪' }).click();
+    await desktop.getByRole('button', { name: '查看上次結果' }).waitFor();
     await completeAssessmentFlow(desktop, true);
     await desktop.getByText('反覆出現的線索').waitFor();
     await desktop.reload();
+    await desktop.getByRole('button', { name: '查看上次結果' }).waitFor();
+    await desktop.getByRole('button', { name: '查看上次結果' }).click();
     await desktop.getByText('你的探索摘要').waitFor();
     console.log('E2E: saved canonical assessment and report');
 
@@ -182,6 +184,8 @@ async function main() {
     const mobileErrors: string[] = [];
     mobile.on('console', (message) => { if (message.type() === 'error') mobileErrors.push(message.text()); });
     await mobile.goto(`${baseUrl}/?eventId=${eventId}`);
+    await mobile.getByRole('button', { name: '查看上次結果' }).waitFor();
+    await mobile.getByRole('button', { name: '查看上次結果' }).click();
     await mobile.getByText('你的探索摘要').waitFor();
     const dimensions = await mobile.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     assert.equal(dimensions.scrollWidth, dimensions.clientWidth, 'mobile layout has horizontal overflow');

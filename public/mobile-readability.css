@@ -62,6 +62,11 @@
   .ai-insight { padding: 16px 14px 17px 16px !important; }
   .ai-insight h3 { font-size: 17px !important; line-height: 1.55 !important; }
   .ai-insight p, .ai-insight__list { font-size: 17px !important; line-height: 1.9 !important; }
+  .ai-progress-card { padding: 18px 16px 16px !important; }
+  .ai-progress-card__header p { font-size: 18px !important; line-height: 1.55 !important; }
+  .ai-progress-steps { gap: 6px; font-size: 11px !important; }
+  .ai-progress-steps span { padding-left: 10px; }
+  .ai-progress-steps span::before { width: 5px; height: 5px; }
 
   .reflection-inputs label { font-size: 15px !important; line-height: 1.6 !important; }
   .reflection-inputs textarea { font-size: 16px !important; line-height: 1.7 !important; }

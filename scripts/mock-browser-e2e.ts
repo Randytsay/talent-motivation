@@ -136,7 +136,7 @@ async function main() {
     await desktop.getByRole('button', { name: '重新產生 AI 解析' }).click();
     assert.equal(await desktop.getByRole('button', { name: '正在產生 AI 解析…' }).isDisabled(), true);
     releaseRetry();
-    await desktop.getByText('你的三個高重複訊號').waitFor();
+    await desktop.getByText('反覆出現的線索').waitFor();
     assert.equal(await desktop.getByRole('button', { name: '重新產生 AI 解析' }).count(), 0);
     assert.equal(requests.filter((request) => request.method === 'POST' && request.pathname === '/api/assessments').length, 1, 'AI retry must not create a new assessment');
     console.log('E2E: AI failure, refresh, retry, disabled duplicate action and same-assessment recovery passed');
@@ -149,7 +149,7 @@ async function main() {
     await desktop.getByText('你的探索摘要').waitFor();
     await desktop.getByRole('button', { name: '重新開始一輪' }).click();
     await completeAssessmentFlow(desktop, true);
-    await desktop.getByText('你的三個高重複訊號').waitFor();
+    await desktop.getByText('反覆出現的線索').waitFor();
     await desktop.reload();
     await desktop.getByText('你的探索摘要').waitFor();
     console.log('E2E: saved canonical assessment and report');

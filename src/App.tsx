@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
+import { AIHighlightedText, AIInsightBlock } from './components/AIInsight';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
 import { PresenterPage } from './components/PresenterPage';
@@ -122,8 +123,8 @@ function PublicSharePage() {
         <article><small>Life Path</small><strong>{share.lifePath}</strong></article>
         <article><small>RIASEC Top 3</small><strong>{share.top3Code}</strong><p>{share.top3.join('、')}</p></article>
       </div>
-      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.join(' ') || '這份摘要目前沒有額外的重複線索。'}</p></div>
-      <p className="local-note">{share.summary}</p>
+      <div className="reflection-card"><small>重複出現的線索</small><p>{share.repeatedSignals.length ? share.repeatedSignals.map((signal, index) => <span key={`${signal}-${index}`}><AIHighlightedText text={signal} /> </span>) : '這份摘要目前沒有額外的重複線索。'}</p></div>
+      <p className="local-note"><AIHighlightedText text={share.summary} /></p>
       <a className="secondary-button public-share-home" href={share.landingUrl}>回到天賦原動力</a>
     </> : !error ? <p className="local-note">正在準備精華摘要…</p> : null}
   </section></main>;
@@ -476,7 +477,7 @@ function AssessmentApp() {
       {draft.step !== 'landing' && draft.step !== 'report' ? (
         <ProgressHeader step={draft.step} onHome={returnHome} onBack={goBack} canBack={draft.step !== 'consent'} />
       ) : null}
-      <section className="journey" aria-live="polite">
+      <section className={`journey ${draft.step === 'landing' ? 'journey--landing' : ''}`} aria-live="polite">
         {draft.step === 'landing' ? <Landing auth={auth} onLogin={() => { window.location.assign('/api/auth/line/start'); }} onStart={startNew} /> : null}
 
         {draft.step === 'consent' ? (
@@ -860,20 +861,23 @@ function ServerReport({
           </div>
 
           {report ? (
-            <div className="reflection-card" style={{ marginTop: 26 }}>
-              <small>你的三個高重複訊號</small>
-              <p>{report.repeated_signals.join(' ')}</p>
-              <small>出生結構這面鏡子</small>
-              <p>{report.birth_profile_summary}</p>
-              <small>可能的原動力</small>
-              <p>{report.motivator_summary}</p>
-              <small>可能還沒被充分使用的部分</small>
-              <p>{report.unused_potential}</p>
-              {report.possible_tensions?.length ? <><small>值得留意的張力</small><p>{report.possible_tensions.join(' ')}</p></> : null}
-              {report.exploration_directions?.length ? <><small>可以先試的小方向</small><p>{report.exploration_directions.join(' ')}</p></> : null}
-              <small>給自己的下一個問題</small>
-              <p>{report.reflection_question}</p>
-            </div>
+            <section className="ai-report" aria-labelledby="ai-report-title">
+              <header className="ai-report__header">
+                <div>
+                  <small>AI 綜合解析</small>
+                  <h2 id="ai-report-title">先讀這些重點，再回到生活裡驗證</h2>
+                </div>
+                <span className="ai-report__note">自我反思參考</span>
+              </header>
+              <AIInsightBlock label="先看這一句" value={report.summary} tone="summary" />
+              <AIInsightBlock label="反覆出現的線索" value={report.repeated_signals} tone="signals" />
+              <AIInsightBlock label="出生結構這面鏡子" value={report.birth_profile_summary} tone="profile" />
+              <AIInsightBlock label="可能的原動力" value={report.motivator_summary} tone="motivator" />
+              <AIInsightBlock label="可以再發揮的空間" value={report.unused_potential} tone="potential" />
+              {report.possible_tensions?.length ? <AIInsightBlock label="同時在乎的兩件事" value={report.possible_tensions} tone="tension" /> : null}
+              {report.exploration_directions?.length ? <AIInsightBlock label="可以先試的小方向" value={report.exploration_directions} tone="exploration" /> : null}
+              <AIInsightBlock label="給自己的下一個問題" value={report.reflection_question} tone="question" />
+            </section>
           ) : (
             <div className="reflection-card" style={{ marginTop: 26, textAlign: 'center', padding: '24px' }}>
               <small>AI 綜合解析</small>
@@ -934,7 +938,18 @@ function GuestSaveActions({ assessment }: { assessment: ClientAssessment }) {
 function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => void; onStart: () => void }) {
   const needsLogin = auth.status === 'unauthenticated';
   return (
-    <section className="landing entrance">
+    <section className="landing landing--hero entrance">
+      <picture className="landing-backdrop" aria-hidden="true">
+        <source media="(max-width: 720px)" srcSet="/landing-hero-mobile.webp" />
+        <img src="/landing-hero.webp" alt="" width="1600" height="901" fetchPriority="high" decoding="async" />
+      </picture>
+      <div className="landing-wash" aria-hidden="true" />
+      <p className="landing-corner-copy landing-corner-copy--left" aria-hidden="true">
+        EXPLORE<br />YOUR NATURE<br /><span>LIVE A BRIGHTER YOU</span>
+      </p>
+      <p className="landing-corner-copy landing-corner-copy--right" aria-hidden="true">
+        認識自己<br />看見可能<br />創造屬於你的美好人生
+      </p>
       <div className="landing-copy">
         <p className="eyebrow">三面鏡子，不替你下定義</p>
         <h1>看見天賦，<br /><em>找到原動力。</em></h1>
@@ -945,11 +960,8 @@ function Landing({ auth, onLogin, onStart }: { auth: AuthState; onLogin: () => v
         {auth.status === 'unavailable' ? <p className="disclaimer">目前以本機草稿模式進行；連線恢復後即可安全保存結果。</p> : null}
         <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
       </div>
-      <div className="mirror-composition" aria-hidden="true">
-        <span className="mirror mirror--one"><b>1</b><small>自我</small></span>
-        <span className="mirror mirror--two"><b>2</b><small>偏好</small></span>
-        <span className="mirror mirror--three"><b>3</b><small>此刻</small></span>
-        <i className="composition-line" />
+      <div className="landing-signature" aria-hidden="true">
+        <span>Birth Profile</span><b>×</b><span>RIASEC</span><b>×</b><span>Reflection</span>
       </div>
     </section>
   );

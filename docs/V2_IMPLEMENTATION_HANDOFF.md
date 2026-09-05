@@ -383,11 +383,11 @@ Prohibited/deterministic language includes existing guardrails plus:
 
 Recommended order:
 
-1. `你的三個高重複訊號`
+1. `反覆出現的線索`
 2. `出生結構這面鏡子` — birth_profile_summary
 3. `你的原動力` — motivator_summary
-4. `值得留意的張力` — possible_tensions
-5. `可能還沒被充分使用的部分` — unused_potential
+4. `同時在乎的兩件事` — possible_tensions
+5. `可以再發揮的空間` — unused_potential
 6. `可以先試的小方向` — exploration_directions
 7. `帶走的一個問題` — reflection_question
 8. summary/disclaimer

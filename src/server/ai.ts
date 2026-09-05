@@ -70,18 +70,18 @@ export class MockAIProvider implements AIProvider {
     const top = assessment.riasecResult.top3Code;
     return validateAIReport({
       repeated_signals: [
-        `活動偏好結果中的 ${top} 是值得留意的投入線索。`,
-        `你選擇「${assessment.subjectiveDriver}」作為做了反而有精神的線索。`,
+        `活動偏好結果中的 ${top}，可能是你投入時容易感到有精神的線索。`,
+        `你選擇「${assessment.subjectiveDriver}」作為能量來源，這讓你的主觀感受有了清楚的入口。`,
       ],
       birth_profile_summary: assessment.birthProfile
-        ? `出生結構的核心數 ${assessment.birthProfile.pyramid.main}，外顯與內在兩層可作為觀察自己的象徵語言。`
-        : '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。',
-      motivator_summary: '這些線索可能反映你在特定投入方式中更容易感到有意義；可以持續觀察實際情境。',
-      possible_tensions: ['活動偏好與你主觀感受到的能量可能不完全相同，兩者都可以保留並繼續觀察。'],
-      unused_potential: assessment.talentUsage < 60 ? '目前的天賦使用感偏低，可以從一個小任務開始試著增加投入。' : '目前已使用一部分天賦，仍可觀察哪些情境能讓投入感更穩定。',
-      exploration_directions: ['先從現職中調整一個可嘗試的小任務，再觀察投入後的感受。'],
-      reflection_question: '最近哪一件具體事情，讓你投入後感到更有精神？',
-      summary: `這是一份以 ${top} 與你的主觀回饋為線索的探索摘要，不是職涯或人格定論。`,
+        ? `從出生結構的核心數 ${assessment.birthProfile.pyramid.main} 這個角度看，你可能在變化與自我理解之間找到一些熟悉感；請用生活經驗來驗證它。`
+        : '出生結構可以是一面觀察自己的鏡子，請把它和你實際走過的經驗放在一起理解。',
+      motivator_summary: '你可能在理解原理、保留自主空間，並把想法做成看得見的成果時，更容易感到投入與有意義。',
+      possible_tensions: ['你同時重視探索與承擔責任，偶爾想往外走、又想把事情照顧好，是很自然的拉扯，這不代表你做錯了。'],
+      unused_potential: '你已經有從線索中找出意義的能力；可以再把其中一個想法帶進小型實作，看看它如何在生活裡長出形狀。',
+      exploration_directions: ['接下來一週，在工作中挑一個可改善的小流程，記下投入前後的精神變化。'],
+      reflection_question: '最近哪一個時刻，你一邊完成責任、一邊仍感到自己有選擇？',
+      summary: `你已經整理出 ${top} 與主觀回饋這些重要線索，代表你願意花時間理解自己。接下來把它當成一份可以慢慢驗證的邀請，不必急著替自己下結論。`,
     });
   }
 }
@@ -115,6 +115,15 @@ const REPORT_SYSTEM_PROMPT = [
   '不可使用「你就是、你的天命、你一定適合、這證明你、你應該辭職」等定論；可使用「可能、值得留意、可以探索」。',
   '探索方向優先寫現職調整與小型副專案，不可導向特定商業機會。',
   '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
+  '語氣請像一位溫和、具體的陪伴者：先指出回答中看得見的線索，再說它可能代表什麼，讓人感到被理解而不是被評分。全文使用第二人稱「你」，多用「可能、似乎、可以觀察」，避免冷硬的測驗報告語氣。',
+  'summary 必須是 2 句以內的溫暖開場：先肯定一個從 facts 看見的努力或特質，再說這份報告是邀請你驗證的線索，不是標籤或定論。',
+  'repeated_signals 必須提供 2 至 3 個獨立項目，每項只寫一個訊號，20 至 55 字；不要把多個訊號用空格、頓號或分號串在同一項。',
+  'birth_profile_summary 與 motivator_summary 各用 1 至 2 句，將數字或類型當成反思角度，連回可感受到的生活經驗；不要寫成命定或人格判決。',
+  'unused_potential 要改寫成「可以再發揮的空間」，先承認你已經擁有的能力，再提出一個可以嘗試的延伸；不要使用「不足、缺乏、偏低、沒用好」等讓人被否定的字眼。',
+  'possible_tensions 提供 1 至 2 個獨立項目，將拉扯寫成同時在乎兩件事的自然現象，並補一句這不代表你做錯了；不要把它寫成缺點或風險警告。',
+  'exploration_directions 提供 2 至 3 個獨立項目，每項是一個低成本、可在 1 至 2 週內完成的小行動，包含情境或觀察方式；不要一次塞入多個動詞或抽象口號。',
+  'reflection_question 只提出一個溫和、具體、沒有標準答案的問題，能讓人回想最近一個真實情境。',
+  '可以在真正值得先讀的短語外加【重點】與【/重點】標記，每個文字段落最多 1 至 2 次；沒有必要時不要標記。不要使用 Markdown 粗體。',
 ].join('\n');
 
 function aiFacts(assessment: AssessmentRecord): string {
@@ -389,7 +398,7 @@ export async function generateValidatedReport(
     ...valid,
     reportId: randomUUID(),
     assessmentId: assessment.assessmentId,
-    promptVersion: 'p1-content-system-v1',
+    promptVersion: 'p3-supportive-readable-v1',
     modelName: provider instanceof MockAIProvider ? 'mock-ai-provider' : (provider as RealAIProvider).providerName,
     generatedAt: now(),
   };

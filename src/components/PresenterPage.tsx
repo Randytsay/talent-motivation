@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AIHighlightedText } from './AIInsight';
 import type { PresenterPayload } from '../server/contracts';
 import { RadarChart } from './RadarChart';
 
@@ -40,7 +41,7 @@ export function PresenterPage() {
               <div className="score-summary">
                 <p className="top-code">{state.data.top3Code}</p>
                 <p>Life Path {state.data.lifePath} · 主觀能量線索 {state.data.subjectiveDriver} · 天賦使用感 {state.data.talentUsage}%</p>
-                {state.data.repeatedSignals ? <div className="reflection-card"><small>重複出現的線索</small><p>{state.data.repeatedSignals.join(' ')}</p></div> : null}
+                {state.data.repeatedSignals ? <div className="reflection-card"><small>重複出現的線索</small><p>{state.data.repeatedSignals.map((signal, index) => <span key={`${signal}-${index}`}><AIHighlightedText text={signal} /> </span>)}</p></div> : null}
               </div>
             </div>
           </>

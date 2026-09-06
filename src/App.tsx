@@ -9,8 +9,9 @@ import { LIFE_PATH_CONTENT } from './data/lifePathContent';
 import { RIASEC_META, RIASEC_QUESTIONS } from './data/riasecQuestions';
 import { calculateLifePath, LifePathValidationError } from './lib/scoring/lifePath';
 import { calculateBirthProfile, type BirthProfileResult } from './lib/scoring/birthProfile';
-import { calculateBirthSignature } from './lib/scoring/birthSignature';
+import { calculateBirthSignature, type BirthSignatureResult } from './lib/scoring/birthSignature';
 import { CORE_NARRATIVES, OUTER_NARRATIVES, INNER_NARRATIVES, getProfileTension } from './data/birthProfileNarratives';
+import { generateWorkplaceDiagnosis } from './data/workplaceProfiles';
 import { scoreRiasec } from './lib/scoring/riasec';
 import { ApiError, createAssessment, createClaim, createSubject, generateReport, getClaimPreview, getLatestAssessment, getPublicShare, getReport, redeemClaim, type ClientAssessment } from './lib/api/client';
 import { useAuthBootstrap, type AuthState } from './lib/api/authBootstrap';
@@ -163,6 +164,41 @@ function BirthProfileExtension({ birthProfile }: { birthProfile: BirthProfileRes
         <div><strong>當這兩個面向相遇（內心拉扯）</strong><p>{getProfileTension(outer, inner)}</p></div>
       </div>
     </details>
+  );
+}
+
+function WorkplaceDiagnosisCard({
+  lifePathNumber,
+  birthSignature,
+}: {
+  lifePathNumber: number;
+  birthSignature?: BirthSignatureResult;
+}) {
+  const activeLineKeys = birthSignature?.activeLines.map((line) => line.key) ?? [];
+  const diagnosis = generateWorkplaceDiagnosis(lifePathNumber, activeLineKeys);
+
+  return (
+    <div className="workplace-diagnosis-card">
+      <div className="workplace-diagnosis-header">
+        <small>💼 職場現狀對照</small>
+        <h4>為什麼你在目前工作中可能很開心，也可能很不順？</h4>
+        <p className="workplace-subtitle">從你的深層天賦特質，看透你在職場中的順流開關與內耗雷區：</p>
+      </div>
+      <div className="workplace-notes-grid">
+        <div className="workplace-note workplace-note--thrive">
+          <strong>✨ 當你感到順流、很有成就感時</strong>
+          <p>{diagnosis.thriving}</p>
+        </div>
+        <div className="workplace-note workplace-note--friction">
+          <strong>🌧️ 當你在目前工作中感到極度內耗、很不順時（痛點雷區）</strong>
+          <p>{diagnosis.friction}</p>
+        </div>
+      </div>
+      <div className="workplace-note workplace-note--guidance">
+        <strong>🚀 接下來可以怎麼協助你（破局與調整方向）</strong>
+        <p>{diagnosis.guidance}</p>
+      </div>
+    </div>
   );
 }
 
@@ -324,6 +360,7 @@ function DetailedResultSections({
   lifePathTopResonance,
   riasecResult,
   birthProfile,
+  birthSignature,
   subjectiveDriver,
   talentUsage,
   priorities,
@@ -337,6 +374,7 @@ function DetailedResultSections({
   lifePathTopResonance?: string;
   riasecResult: RiasecResult;
   birthProfile?: BirthProfileResult;
+  birthSignature?: BirthSignatureResult;
   subjectiveDriver?: RiasecCode;
   talentUsage: number | string;
   priorities: string[];
@@ -353,6 +391,7 @@ function DetailedResultSections({
         )}
         <p className="mirror-result-meta">生命靈數 {lifePathValue} · {lifePathLabel}｜{lifePathCoreMotivation}</p>
         <p className="life-path-daily-reading">{lifePathDailyReading(LIFE_PATH_CONTENT[lifePathValue as keyof typeof LIFE_PATH_CONTENT])}</p>
+        <WorkplaceDiagnosisCard lifePathNumber={lifePathValue} birthSignature={birthSignature} />
         {lifePathTopResonance ? (
           <div className="life-path-resonance-note">
             <small>你選的共鳴線索</small>
@@ -822,6 +861,7 @@ function AssessmentApp() {
               <div><small>✨ 最能讓你眼睛發亮的事</small><p>{lifePathContent.strengths[0]}</p></div>
               <div><small>🌧️ 暗中消耗你心力的狀態</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
+            <WorkplaceDiagnosisCard lifePathNumber={draft.lifePath.value} birthSignature={draft.birthSignature} />
             {draft.birthProfile ? <><BirthProfileCore birthProfile={draft.birthProfile} /><BirthProfileExtension birthProfile={draft.birthProfile} /></> : null}
             <div className="action-row">
               <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
@@ -1076,6 +1116,7 @@ function AssessmentApp() {
               lifePathTopResonance={draft.lifePathTopResonance}
               riasecResult={riasecResult}
               birthProfile={draft.birthProfile}
+              birthSignature={draft.birthSignature}
               subjectiveDriver={draft.subjectiveDriver}
               talentUsage={draft.talentUsage ?? '—'}
               priorities={draft.priorities}
@@ -1155,6 +1196,7 @@ function ServerReport({
             lifePathTopResonance={assessment.lifePathTopResonance}
             riasecResult={assessment.riasecResult}
             birthProfile={assessment.birthProfile}
+            birthSignature={assessment.birthSignature}
             subjectiveDriver={assessment.subjectiveDriver}
             talentUsage={assessment.talentUsage}
             priorities={assessment.priorities}

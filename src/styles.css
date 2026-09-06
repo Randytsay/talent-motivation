@@ -570,6 +570,23 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .saving-progress-card { margin-top: 24px; padding: 22px 24px 19px; border: 1px solid rgba(181, 154, 102, .45); border-radius: 16px; background: linear-gradient(135deg, #fffaf1, #f5f8fb); box-shadow: 0 12px 30px rgba(36, 50, 71, .07); text-align: left; }
 .saving-subnote { margin: 12px 0 0; color: #7b818b; font-size: 13px; text-align: center; }
 
+.workplace-diagnosis-card { max-width: 650px; margin: 24px auto 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper-strong); text-align: left; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, .03); }
+.workplace-diagnosis-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(246, 243, 237, .6), rgba(255, 255, 255, .9)); }
+.workplace-diagnosis-header small { color: var(--clay); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.workplace-diagnosis-header h4 { margin: 6px 0 4px; font-size: 16px; font-weight: 700; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; }
+.workplace-subtitle { margin: 0; color: #7b818b; font-size: 13px; line-height: 1.5; }
+.workplace-notes-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+.workplace-note { padding: 18px 22px; }
+.workplace-note--thrive { background: rgba(72, 140, 110, .04); }
+.workplace-note--friction { border-left: 1px solid var(--line); background: rgba(214, 90, 71, .04); }
+.workplace-note--guidance { padding: 18px 24px; background: rgba(181, 154, 102, .06); }
+.workplace-note strong { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.workplace-note--thrive strong { color: #2e694d; }
+.workplace-note--friction strong { color: #a44335; }
+.workplace-note--guidance strong { color: #876729; }
+.workplace-note p { margin: 0; font-size: 13.5px; line-height: 1.7; color: #4a5260; }
+
+
 /* Result page data rows use a fixed numeric column and a separate track. */
 .report-panel .score-list { margin: 0; }
 .report-panel .score-list div { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 14px; margin-top: 10px; }
@@ -611,6 +628,8 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .choice-grid--three { grid-template-columns: 1fr; }
   .two-column-notes { grid-template-columns: 1fr; }
   .two-column-notes > div + div { border-top: 1px solid var(--line); border-left: 0; }
+  .workplace-notes-grid { grid-template-columns: 1fr; }
+  .workplace-note--friction { border-left: 0; border-top: 1px solid var(--line); }
   .scale-options { grid-template-columns: repeat(2, 1fr); margin-top: 31px; }
   .scale-options button { min-height: 92px; }
   .score-list div { grid-template-columns: 92px 1fr; }

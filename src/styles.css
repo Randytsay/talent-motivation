@@ -567,6 +567,8 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 @keyframes ai-orbit-breathe { 0%, 100% { transform: scale(.96); box-shadow: 0 0 0 0 rgba(166, 95, 72, .16); } 50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(166, 95, 72, 0); } }
 @keyframes ai-orbit-spin { to { transform: rotate(360deg); } }
 @keyframes ai-progress-sweep { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(290%); } }
+.saving-progress-card { margin-top: 24px; padding: 22px 24px 19px; border: 1px solid rgba(181, 154, 102, .45); border-radius: 16px; background: linear-gradient(135deg, #fffaf1, #f5f8fb); box-shadow: 0 12px 30px rgba(36, 50, 71, .07); text-align: left; }
+.saving-subnote { margin: 12px 0 0; color: #7b818b; font-size: 13px; text-align: center; }
 
 /* Result page data rows use a fixed numeric column and a separate track. */
 .report-panel .score-list { margin: 0; }

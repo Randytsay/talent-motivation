@@ -133,14 +133,14 @@ function PublicSharePage() {
 function BirthProfileCore({ birthProfile }: { birthProfile: BirthProfileResult }) {
   const main = birthProfile.pyramid.main;
   const coreInfo = CORE_NARRATIVES[main] ?? {
-    title: `${main} 號主題`,
-    tagline: '一個可以自行確認的觀察角度',
-    description: '這個角度提供一個整理線索的方式，請以自己的經驗確認是否有幫助。',
-    relatableHit: '可以想想：哪些生活情境和這個主題有連結？',
+    title: `${main} 號核心特質`,
+    tagline: '你獨特而真實的內在節奏',
+    description: '你習慣以自己的方式感受世界，當環境能貼合你的節奏時，你的真實力量便會自然舒展。',
+    relatableHit: '💭 回想一下：最近什麼樣的時刻，讓你感到自己最有力量且踏實？',
   };
   return (
     <div className="mirror-core mirror-core--birth">
-      <div className="mirror-result-label">核心結果</div>
+      <div className="mirror-result-label">深層特質底色</div>
       <h3>{coreInfo.title}</h3>
       <p className="mirror-result-tagline">{coreInfo.tagline}</p>
       <p>{coreInfo.description}</p>
@@ -155,12 +155,12 @@ function BirthProfileExtension({ birthProfile }: { birthProfile: BirthProfileRes
   const stage = birthProfile.currentStage;
   return (
     <details className="mirror-extension">
-      <summary>查看其他反思提示</summary>
+      <summary>🔍 看看別人眼中的你 vs. 你心中的自己（深層特質探索）</summary>
       <div className="mirror-extension__list">
-        <div><strong>外在角度 · {outer} 號</strong><p>{OUTER_NARRATIVES[outer] ?? '可以觀察你如何面對外界。'}</p></div>
-        <div><strong>內在角度 · {inner} 號</strong><p>{INNER_NARRATIVES[inner] ?? '可以想想你重視的條件。'}</p></div>
-        {stage.number ? <div><strong>補充角度 · {stage.number} 號</strong><p>這個角度可以作為近期觀察的提示，請以自己的生活經驗確認它是否有幫助。</p></div> : null}
-        <div><strong>兩個角度放在一起</strong><p>{getProfileTension(outer, inner)}</p></div>
+        <div><strong>外在展現 · {outer} 號（給人的第一印象）</strong><p>{OUTER_NARRATIVES[outer] ?? '可以觀察你如何面對外界。'}</p></div>
+        <div><strong>內在渴望 · {inner} 號（藏在心底的聲音）</strong><p>{INNER_NARRATIVES[inner] ?? '可以想想你重視的條件。'}</p></div>
+        {stage.number ? <div><strong>目前人生階段 · {stage.number} 號（當前核心課題）</strong><p>這個階段的你，正逐漸將注意力轉向更深層的自我實現與價值沉澱，尋求更適合自己的節奏。</p></div> : null}
+        <div><strong>當這兩個面向相遇（內心拉扯）</strong><p>{getProfileTension(outer, inner)}</p></div>
       </div>
     </details>
   );
@@ -222,8 +222,24 @@ function RiasecTopThree({ riasecResult, showScores = true }: { riasecResult: Ria
   );
 }
 
+const LIFE_PATH_DAILY_PROFILES: Record<number, string> = {
+  1: '在你的骨子裡，最能點燃你的是「能按照自己的想法踏出第一步」。你討厭被動等待每個決定都要他人拍板，那會讓你有手腳被綁住的無力感；一旦擁有主導空間，你的專注與衝勁會立刻甦醒。',
+  2: '在你的骨子裡，最重視的是「真誠的信任與互動品質」。當身邊的人能夠彼此傾聽、同理協作時，你會感到無比安心且充滿力量；相反地，若身處勾心鬥角或衝突不斷的環境，你的心力會被迅速耗盡。',
+  3: '在你的骨子裡，最需要的是「能自由表達自我並被看見」。當你能用自己的方式把點子、故事或創意說出來，並得到共鳴時，整個人會閃閃發光；若是被困在高度死板且無法表達的流程裡，心裡會感到極度壓抑。',
+  4: '在你的骨子裡，最追求的是「踏實的秩序與完成感」。當事情有清楚的脈絡、可靠的流程，你能一步一腳印把它做好時，你會感到無比踏實；最怕的就是規則反覆無常、承諾不算數，那會讓你極度焦慮與心累。',
+  5: '在你的骨子裡，最怕的從來不是辛苦，而是「被困在沒有彈性的死規矩裡」。當環境能給你嘗試新做法的自由時，你的適應力與靈感會自然湧現；可一旦所有事都被規定死、看不到任何轉圜餘地，你的心力就會被瞬間抽空。',
+  6: '在你的骨子裡，最渴望的是「用真心照顧所愛，且被溫柔珍惜」。當你的付出能為人帶來實質幫助、且被好好看見時，你的價值感會無比充沛；但若責任被視為理所當然、且沒有喘息界線時，你會感到深深的心碎與委屈。',
+  7: '在你的骨子裡，最需要的是「能把事情想明白的安靜空間」。當你能安靜沉澱、深入推敲出問題的本質時，你的洞察力無人能比；最怕的就是被催促著立刻表態，或是充斥著浮躁無效的表面社交，那會讓你只想立刻抽離。',
+  8: '在你的骨子裡，最在乎的是「努力能不能換來實實在在的成果與進展」。當你有明確目標、能調動資源把事情往前推進時，你會無比興奮且幹勁十足；最怕的就是付出毫無反饋，或是需要扛責任卻沒有施展權力的空轉。',
+  9: '在你的骨子裡，最堅持的是「事情背後有沒有深遠的意義與格局」。當你在做的事情能對他人、對社會產生正向影響時，你會願意傾注所有熱情；若是被迫做著違背初衷、只顧短期利益的瑣事，你的靈魂會感到難以忍受的疲憊。',
+  11: '在你的骨子裡，有一種極為敏銳的直覺與靈感雷達。當你能把細微的感受整理成啟發人心的觀點時，你的能量會無比充沛；最怕環境充滿嘈雜雜訊且缺乏沉澱時間，那會讓你的神經系統迅速超載。',
+  22: '在你的骨子裡，渴望把宏大的理想一步步落實成真正的系統與架構。當你能整合人與資源、看見大藍圖具體成形時，成就感無可比擬；最怕目標很大卻沒有可落地的路徑，或責任過重而讓自己喘不過氣。',
+  33: '在你的骨子裡，有一種陪伴他人成長、賦予他人力量的深層召喚。當你能引導別人走出困境、看見他人蛻變時，你的生命力最強烈；最怕把所有人的問題都攬在自己身上，忘記給自己留下被愛的餘裕。',
+};
+
 function lifePathDailyReading(content: typeof LIFE_PATH_CONTENT[keyof typeof LIFE_PATH_CONTENT]): string {
-  return `「${content.label}」這個角度關注的是${content.coreMotivation}。如果這和你的經驗有連結，你可能在${content.strengths[0]}時比較容易投入；遇到${content.drains[0]}，則可能需要多一點調整空間。`;
+  return LIFE_PATH_DAILY_PROFILES[content.value] ??
+    `在你的骨子裡，最重視的是「${content.coreMotivation}」。當環境能給予充分信任與發揮空間時，你的專注動能會自然湧現；可一旦陷入僵化限制，心力就容易受到無形磨損。`;
 }
 
 function RiasecPreferenceReading({ riasecResult }: { riasecResult: RiasecResult }) {
@@ -439,6 +455,13 @@ function AIReportSummary({ report, expanded, onToggle }: { report: AIReport; exp
   );
 }
 
+const SAVING_STAGES = [
+  '正在安全保存你的探索記錄',
+  '正在詳細分析你的天賦與偏好特質',
+  '正在多維度比對三面鏡子的線索',
+  '即將為你生成最懂你的專屬心靈畫像',
+];
+
 function AssessmentApp() {
   const auth = useAuthBootstrap();
   const eventId = new URLSearchParams(window.location.search).get('eventId');
@@ -451,7 +474,20 @@ function AssessmentApp() {
   const [serverReport, setServerReport] = useState<AIReport | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingStageIndex, setSavingStageIndex] = useState(0);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+  useEffect(() => {
+    if (!isSaving) return undefined;
+    const timer = window.setInterval(() => {
+      setSavingStageIndex((current) => (current + 1) % SAVING_STAGES.length);
+    }, 1200);
+    return () => {
+      window.clearInterval(timer);
+      setSavingStageIndex(0);
+    };
+  }, [isSaving]);
+
   const completedAnswers = Object.keys(draft.riasecAnswers).length;
   const riasecResult = useMemo(() => {
     if (completedAnswers !== RIASEC_QUESTIONS.length) return null;
@@ -776,15 +812,15 @@ function AssessmentApp() {
               <span>{draft.lifePath.value}</span>
               <small>{lifePathContent.label}</small>
             </div>
-            <p className="life-motivation">這個框架通常把 {draft.lifePath.value} 解讀為：<strong>{lifePathContent.coreMotivation}</strong></p>
+            <p className="life-motivation">你骨子裡的深層原動力：<strong>{lifePathContent.coreMotivation}</strong></p>
             <div className="life-daily-reading">
-              <small>這個主題可能出現在日常的地方</small>
+              <small>💡 日常心境的真實寫照</small>
               <p>{lifePathDailyReading(lifePathContent)}</p>
             </div>
             <div className="tag-list">{lifePathContent.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div>
             <div className="two-column-notes">
-              <div><small>可能讓你有投入感</small><p>{lifePathContent.strengths[0]}</p></div>
-              <div><small>可能讓你覺得卡住</small><p>{lifePathContent.drains[0]}</p></div>
+              <div><small>✨ 最能讓你眼睛發亮的事</small><p>{lifePathContent.strengths[0]}</p></div>
+              <div><small>🌧️ 暗中消耗你心力的狀態</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
             {draft.birthProfile ? <><BirthProfileCore birthProfile={draft.birthProfile} /><BirthProfileExtension birthProfile={draft.birthProfile} /></> : null}
             <div className="action-row">
@@ -988,17 +1024,33 @@ function AssessmentApp() {
                 </label>
               </fieldset>
             ) : null}
-            <div className="action-row">
-              <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
-              <button
-                className="primary-button"
-                disabled={draft.priorities.length === 0 || !draft.explorationInterest}
-                type="button"
-                onClick={() => { void completeAssessment(); }}
-              >
-                {isSaving ? '正在安全保存…' : '整理我的三面鏡子'}
-              </button>
-            </div>
+            {isSaving ? (
+              <div className="saving-progress-card" role="status" aria-live="polite">
+                <div className="ai-progress-card__header">
+                  <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
+                  <div>
+                    <small>AI 深度解析中</small>
+                    <p>{SAVING_STAGES[savingStageIndex]}…</p>
+                  </div>
+                </div>
+                <div className="ai-progress-bar" role="progressbar" aria-label="正在安全保存並分析你的探索線索">
+                  <span />
+                </div>
+                <p className="saving-subnote">請稍候片刻，正在為你細細梳理專屬的心靈與天賦畫像…</p>
+              </div>
+            ) : (
+              <div className="action-row">
+                <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
+                <button
+                  className="primary-button"
+                  disabled={draft.priorities.length === 0 || !draft.explorationInterest}
+                  type="button"
+                  onClick={() => { void completeAssessment(); }}
+                >
+                  整理我的三面鏡子
+                </button>
+              </div>
+            )}
             {persistenceError ? <p className="field-error" role="alert">{persistenceError}</p> : null}
           </section>
         ) : null}
@@ -1124,7 +1176,12 @@ function ServerReport({
   );
 }
 
-const AI_PROGRESS_STAGES = ['正在整理你的回答', '正在比對三面鏡子的線索', '正在把發現寫成你的語句'];
+const AI_PROGRESS_STAGES = [
+  { text: '正在整理你的回答', step: '整理回答' },
+  { text: '正在深入比對三面鏡子，尋找你的高光時刻', step: '比對線索' },
+  { text: '正在細細梳理你最真實的卡點與深層渴望', step: '剖析卡點' },
+  { text: '正在雕琢直擊心靈的專屬畫像，即將展開', step: '生成畫像' },
+];
 
 function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
   const [stageIndex, setStageIndex] = useState(0);
@@ -1152,14 +1209,18 @@ function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
         <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
         <div>
           <small>AI 綜合解析</small>
-          <p>{AI_PROGRESS_STAGES[stageIndex]}…</p>
+          <p>{AI_PROGRESS_STAGES[stageIndex].text}…</p>
         </div>
       </div>
       <div className="ai-progress-bar" role="progressbar" aria-label="AI 正在整理你的探索線索" aria-valuemin={0} aria-valuemax={100}>
         <span />
       </div>
       <div className="ai-progress-steps" aria-hidden="true">
-        {AI_PROGRESS_STAGES.map((stage, index) => <span className={index === stageIndex ? 'is-active' : ''} key={stage}>{stage.replace('正在', '')}</span>)}
+        {AI_PROGRESS_STAGES.map((stage, index) => (
+          <span className={index === stageIndex ? 'is-active' : ''} key={stage.step}>
+            {stage.step}
+          </span>
+        ))}
       </div>
     </div>
   );

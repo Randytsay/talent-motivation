@@ -568,7 +568,8 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 @keyframes ai-orbit-spin { to { transform: rotate(360deg); } }
 @keyframes ai-progress-sweep { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(290%); } }
 .saving-progress-card { margin-top: 24px; padding: 22px 24px 19px; border: 1px solid rgba(181, 154, 102, .45); border-radius: 16px; background: linear-gradient(135deg, #fffaf1, #f5f8fb); box-shadow: 0 12px 30px rgba(36, 50, 71, .07); text-align: left; }
-.saving-subnote { margin: 12px 0 0; color: #7b818b; font-size: 13px; text-align: center; }
+.saving-subnote, .ai-progress-subnote { margin: 14px 0 0; color: #5a6676; font-size: 13.5px; line-height: 1.6; text-align: center; }
+.ai-progress-subnote { padding: 9px 14px; background: rgba(181, 154, 102, .1); border-radius: 10px; color: #324052; font-weight: 500; }
 
 .text-emphasis { font-weight: 700; color: var(--ink-strong); background: linear-gradient(180deg, transparent 62%, rgba(181, 154, 102, .24) 62%); padding: 0 2px; border-radius: 2px; }
 

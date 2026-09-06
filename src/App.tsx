@@ -500,9 +500,9 @@ function AIReportSummary({ report, expanded, onToggle }: { report: AIReport; exp
 
 const SAVING_STAGES = [
   '正在安全保存你的探索記錄',
-  '正在詳細分析你的天賦與偏好特質',
-  '正在多維度比對三面鏡子的線索',
-  '即將為你生成最懂你的專屬心靈畫像',
+  '正在計算生命靈數與活動偏好',
+  '正在生成你的三面鏡子快照',
+  '即將為你開啟探索結果',
 ];
 
 function AssessmentApp() {
@@ -1074,14 +1074,14 @@ function AssessmentApp() {
                 <div className="ai-progress-card__header">
                   <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
                   <div>
-                    <small>AI 深度解析中</small>
+                    <small>🪞 三面鏡子彙整中</small>
                     <p>{SAVING_STAGES[savingStageIndex]}…</p>
                   </div>
                 </div>
-                <div className="ai-progress-bar" role="progressbar" aria-label="正在安全保存並分析你的探索線索">
+                <div className="ai-progress-bar" role="progressbar" aria-label="正在安全保存記錄並彙整三面鏡子">
                   <span />
                 </div>
-                <p className="saving-subnote">請稍候片刻，正在為你細細梳理專屬的心靈與天賦畫像…</p>
+                <p className="saving-subnote">正在為你同步保存記錄，即將開啟專屬的三面鏡子探索結果…</p>
               </div>
             ) : (
               <div className="action-row">
@@ -1255,7 +1255,7 @@ function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
       <div className="ai-progress-card__header">
         <span className="ai-progress-orbit" aria-hidden="true"><i /></span>
         <div>
-          <small>AI 綜合解析</small>
+          <small>✨ 專屬 AI 心靈畫像生成中</small>
           <p>{AI_PROGRESS_STAGES[stageIndex].text}…</p>
         </div>
       </div>
@@ -1269,6 +1269,7 @@ function AIGenerationProgress({ isGenerating }: { isGenerating: boolean }) {
           </span>
         ))}
       </div>
+      <p className="ai-progress-subnote">💡 你的三面鏡子已彙整完成！AI 顧問正在為你撰寫專屬畫像，你可以先往下滑動閱讀三面鏡子…</p>
     </div>
   );
 }

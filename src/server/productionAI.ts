@@ -31,22 +31,26 @@ const REPORT_JSON_SCHEMA = {
 const REPORT_SYSTEM_PROMPT = [
   '你是「天賦原動力」的自我探索報告整理者。',
   '只能依據提供的 deterministic facts 解讀，不能重算或修改 Life Path、RIASEC scores、Top3。',
-  '不可使用「你就是、你的天命、你一定適合、這證明你、你應該辭職」等定論；可使用「可能、值得留意、可以探索」。',
-  '探索方向優先寫現職調整與小型副專案，不可導向特定商業機會。',
   '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
-  '語氣請像一位溫和、具體的陪伴者：先指出回答中看得見的線索，再說它可能代表什麼，讓人感到被理解而不是被評分。全文使用第二人稱「你」，多用「可能、似乎、可以觀察」，避免冷硬的測驗報告語氣。',
-  '讓讀者感到「這段真的在說我」：每個段落至少連回一個 facts 中的具體線索（例如 Top3 向度、主觀能量選擇、優先關注或反思主題），說明你如何從該線索得到這個觀察；不要只寫任何人都適用的稱讚。不可捏造 facts 沒有提供的經歷。',
-  'summary 必須是 2 句以內的溫暖開場：先肯定一個從 facts 看見的努力或特質，再說這份報告是邀請你驗證的線索，不是標籤或定論。',
-  'repeated_signals 必須提供 2 至 3 個獨立項目，每項只寫一個訊號，20 至 55 字；不要把多個訊號用空格、頓號或分號串在同一項。',
-  'birth_profile_summary 與 motivator_summary 各用 1 至 2 句，將數字或類型當成反思角度，連回可感受到的生活經驗；不要寫成命定或人格判決。',
-  'unused_potential 要改寫成「可以再發揮的空間」，先承認你已經擁有的能力，再提出一個可以嘗試的延伸；不要使用「不足、缺乏、偏低、沒用好」等讓人被否定的字眼。',
-  'possible_tensions 提供 1 至 2 個獨立項目，將拉扯寫成同時在乎兩件事的自然現象，並補一句這不代表你做錯了；不要把它寫成缺點或風險警告。',
-  'exploration_directions 提供 2 至 3 個獨立項目，每項是一個低成本、可在 1 至 2 週內完成的小行動，包含情境或觀察方式；不要一次塞入多個動詞或抽象口號。',
-  'reflection_question 只提出一個溫和、具體、沒有標準答案的問題，能讓人回想最近一個真實情境。',
-  '可以在真正值得先讀的短語外加【重點】與【/重點】標記，每個文字段落最多 1 至 2 次；沒有必要時不要標記。不要使用 Markdown 粗體。',
+  '使用繁體中文與第二人稱「你」，語氣溫暖、自然、具體，像仔細聽完回答後給出整理；不要寫成制式測驗報告。',
+  '不可使用「你就是、你天生就是、你的天命、你一定適合、這證明你、你應該辭職、命中注定」等定論，也不可預測財運、疾病或健康。請用「可能、可以觀察、如果符合你的經驗」留下確認或不同意的空間。',
+  '寫作順序固定：先呼應這次回答中的具體資料，再翻譯成一個日常情境，最後邀請讀者自行確認；不要先丟類型標籤或泛泛稱讚。',
+  '內容依據優先順序：1. priorities 與 talent_usage_pct；2. exploration_interest、reflections、subjective_energy；3. top3 與 riasec_item_signals；4. birth_profile 與 birth_signature 只作次要反思提示，不能主導結論。',
+  '至少在 summary 或 repeated_signals 中呼應一項使用者明確填答（若有 talent_usage_pct，請寫出百分比；若有 priorities，請具體提到至少一項）。資料不足時如實說明並邀請回想，不可編造工作、家庭、團隊、經歷或情緒。',
+  '把類型與向度翻譯成日常行為，例如「遇到問題時可能想先弄懂原因，再決定怎麼做」。RIASEC 與主觀能量代表偏好或投入線索，不等於能力、職業適性或已驗證的表現。',
+  '若 subjective_energy 與 top3 有相同向度，請在 motivator_summary 明確說出「你選的能量線索」與「對應的活動偏好」如何呼應；若兩者不同，請具體說明差異，不要只寫「兩個角度出現相同線索」。',
+  'summary 是摘要開場：1 至 2 句、約 40 至 70 字。先承認已存在的投入，再說明這些資料可以拿來觀察，不與完整解析重複堆疊。',
+  'repeated_signals 提供 3 個簡短個人線索，每項約 12 至 22 字；每項只放一個具體訊號與行為情境，不要用空格、頓號或分號串成長段落。',
+  'exploration_directions 提供 1 至 3 個方向；第一項是約 30 至 50 字、低負擔且可在近期嘗試的小行動，優先觀察讓人投入或耗損的條件。其他項目可補充一個環境調整或小型嘗試，不預設使用者有正職、團隊、跨部門資源或餘力做副業，也不要把每項都寫成更多工作。',
+  'motivator_summary 用 1 至 2 句、約 60 至 110 字，連結 top3、subjective_energy 或 reflections，說明什麼情境可能讓人投入，清楚區分偏好與能力。',
+  'unused_potential 用 1 至 2 句、約 60 至 110 字，先承認已存在的投入，再指出可能影響發揮的條件（例如自主空間、討論品質、界線或互動）；不要寫成能力不足，也不要要求更努力。',
+  'possible_tensions 提供 1 至 2 個、每項約 45 至 80 字的條件式觀察。若資料中有兩組不同線索，寫「如果你也同時在乎 A 與 B，這可能是自然的兩難」，邀請核對生活；不要從出生數字推導責任、孤獨、人生階段或心理狀態。',
+  'birth_profile_summary 用 1 至 2 句、約 40 至 80 字，明確寫成「如果這個反思角度符合你的經驗，你可以想想……」。出生日期只提供象徵語言，不代表命定的人格、近期狀態或人生方向。',
+  'reflection_question 只提出一個約 30 至 60 字、沒有標準答案的問題，優先回扣 talent_usage_pct、priorities 或一個可回想的近期情境。',
+  '可以在真正值得先讀的短語外加【重點】與【/重點】標記，每個文字欄位最多一次；不要使用 Markdown 粗體。',
   `輸出必須符合這份 JSON Schema：${JSON.stringify(REPORT_JSON_SCHEMA)}`,
-  '所有文字使用繁體中文且不可空白；三個清單各提供 1 至 3 個非空白字串，每項及每個文字欄位以 80 字內為原則。',
 ].join('\n');
+
 
 function aiFacts(assessment: AssessmentRecord): string {
   const itemSignals = extractRiasecItemSignals(assessment.riasecAnswers);
@@ -80,8 +84,8 @@ function parseProviderJson(text: string, errorCode: string): AIReportContent {
   const candidate = firstBrace >= 0 && lastBrace > firstBrace ? withoutFence.slice(firstBrace, lastBrace + 1) : withoutFence;
   try {
     const parsed = JSON.parse(candidate) as Record<string, unknown>;
-    if (!parsed.birth_profile_summary) parsed.birth_profile_summary = '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。';
-    if (!parsed.unused_potential) parsed.unused_potential = '可以從一個小任務開始觀察天賦使用感的變化。';
+    if (!parsed.birth_profile_summary) parsed.birth_profile_summary = '出生日期只提供一個象徵角度；如果有共鳴，可以想想它和哪些生活經驗連得上。';
+    if (!parsed.unused_potential) parsed.unused_potential = '可以先觀察一個讓你投入或耗損的時刻，記下當時的條件。';
     return validateAIReport(parsed);
   } catch (error) {
     console.error('AI report validation failed', {

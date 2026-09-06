@@ -36,7 +36,7 @@ function routeFor(pathname: string, handlers: ReturnType<typeof createRouteHandl
 }
 
 async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
-  await page.getByRole('button', { name: '開始探索我的天賦' }).click();
+  await page.getByRole('button', { name: '開始探索' }).click();
   await page.getByRole('button', { name: '準備好了，開始我的旅程' }).click();
   await page.locator('#birth-date').fill('1978-11-05');
   await page.getByRole('button', { name: '看看這面鏡子' }).click();
@@ -64,7 +64,7 @@ async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
   assert.equal(await consent.isChecked(), presenterConsent, 'Presenter consent checkbox did not retain the participant choice');
 
   await page.getByRole('button', { name: '整理我的三面鏡子' }).click();
-  await page.getByText('你的探索摘要').waitFor();
+  await page.getByRole('heading', { name: '你的探索結果' }).waitFor();
 }
 
 async function main() {
@@ -137,7 +137,22 @@ async function main() {
     assert.equal(await desktop.getByRole('button', { name: '正在產生 AI 解析…' }).isDisabled(), true);
     await desktop.getByText('正在整理你的回答…').waitFor();
     releaseRetry();
-    await desktop.getByText('反覆出現的線索').waitFor();
+    await desktop.getByText('一句核心理解').waitFor();
+    await desktop.waitForTimeout(600);
+    await desktop.getByRole('heading', { name: '三面鏡子快速摘要' }).waitFor();
+    await desktop.getByRole('link', { name: /出生日期反思/ }).click();
+    await desktop.getByRole('heading', { name: '第一面鏡子｜出生日期反思' }).waitFor();
+    await desktop.screenshot({ path: '/tmp/talent-motivation-result-1440.png', fullPage: true });
+    await desktop.getByRole('button', { name: '查看完整解析' }).click();
+    await desktop.getByRole('button', { name: '收起完整解析' }).waitFor();
+    assert.equal(await desktop.getByRole('button', { name: '收起完整解析' }).getAttribute('aria-expanded'), 'true');
+    await desktop.getByRole('heading', { name: '第一面鏡子｜出生日期反思' }).last().waitFor();
+    await desktop.screenshot({ path: '/tmp/talent-motivation-result-1440-expanded.png', fullPage: true });
+    await desktop.getByRole('button', { name: '收起完整解析' }).click();
+    assert.equal(await desktop.getByRole('button', { name: '查看完整解析' }).getAttribute('aria-expanded'), 'false');
+    const activityDetails = desktop.locator('.mirror-section--activity details.mirror-extension').first();
+    await activityDetails.locator('summary').click();
+    await desktop.getByRole('img', { name: '六維 RIASEC 偏好分數雷達圖' }).waitFor();
     assert.equal(await desktop.getByRole('button', { name: '重新產生 AI 解析' }).count(), 0);
     assert.equal(requests.filter((request) => request.method === 'POST' && request.pathname === '/api/assessments').length, 1, 'AI retry must not create a new assessment');
     console.log('E2E: AI failure, refresh, retry, disabled duplicate action and same-assessment recovery passed');
@@ -147,13 +162,18 @@ async function main() {
 
     console.log('E2E: verifying an event-scoped assessment with explicit Presenter consent');
     await desktop.goto(`${baseUrl}/?eventId=${eventId}`);
-    await desktop.getByRole('button', { name: '查看上次結果' }).waitFor();
+    await desktop.getByRole('button', { name: '回顧上次結果' }).waitFor();
+    await desktop.getByText('這個探索包含什麼？').click();
+    await desktop.getByText('從活動偏好、當下感受與出生日期的反思提示，整理認識自己的線索。出生日期解讀僅供自我反思參考。').waitFor();
+    await desktop.getByText('這個探索包含什麼？').click();
+    await desktop.waitForTimeout(600);
+    await desktop.screenshot({ path: '/tmp/talent-motivation-home-1440.png', fullPage: true });
     await completeAssessmentFlow(desktop, true);
-    await desktop.getByText('反覆出現的線索').waitFor();
+    await desktop.getByText('一句核心理解').waitFor();
     await desktop.reload();
-    await desktop.getByRole('button', { name: '查看上次結果' }).waitFor();
-    await desktop.getByRole('button', { name: '查看上次結果' }).click();
-    await desktop.getByText('你的探索摘要').waitFor();
+    await desktop.getByRole('button', { name: '回顧上次結果' }).waitFor();
+    await desktop.getByRole('button', { name: '回顧上次結果' }).click();
+    await desktop.getByRole('heading', { name: '你的探索結果' }).waitFor();
     console.log('E2E: saved canonical assessment and report');
 
     const persistedDraft = await desktop.evaluate(() => window.localStorage.getItem('talent-motivation:assessment-draft:v1'));
@@ -184,11 +204,21 @@ async function main() {
     const mobileErrors: string[] = [];
     mobile.on('console', (message) => { if (message.type() === 'error') mobileErrors.push(message.text()); });
     await mobile.goto(`${baseUrl}/?eventId=${eventId}`);
-    await mobile.getByRole('button', { name: '查看上次結果' }).waitFor();
-    await mobile.getByRole('button', { name: '查看上次結果' }).click();
-    await mobile.getByText('你的探索摘要').waitFor();
+    await mobile.getByRole('button', { name: '回顧上次結果' }).waitFor();
+    await mobile.getByRole('button', { name: '回顧上次結果' }).click();
+    await mobile.getByRole('heading', { name: '你的探索結果' }).waitFor();
+    await mobile.waitForTimeout(600);
+    await mobile.screenshot({ path: '/tmp/talent-motivation-result-390.png', fullPage: true });
     const dimensions = await mobile.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
     assert.equal(dimensions.scrollWidth, dimensions.clientWidth, 'mobile layout has horizontal overflow');
+    await mobile.setViewportSize({ width: 430, height: 844 });
+    const wideMobileDimensions = await mobile.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    assert.equal(wideMobileDimensions.scrollWidth, wideMobileDimensions.clientWidth, '430px layout has horizontal overflow');
+    await mobile.screenshot({ path: '/tmp/talent-motivation-result-430.png', fullPage: true });
+    await mobile.setViewportSize({ width: 360, height: 800 });
+    const narrowDimensions = await mobile.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    assert.equal(narrowDimensions.scrollWidth, narrowDimensions.clientWidth, '360px layout has horizontal overflow');
+    await mobile.screenshot({ path: '/tmp/talent-motivation-result-360.png', fullPage: true });
     assert.deepEqual(mobileErrors, [], 'mobile console emitted errors');
     await mobile.close();
     assert.deepEqual(consoleErrors, [], 'desktop console emitted errors');

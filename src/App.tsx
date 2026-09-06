@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { ReactNode } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
-import { AIHighlightedText, AIInsightBlock } from './components/AIInsight';
+import { AIHighlightedText } from './components/AIInsight';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
 import { PresenterPage } from './components/PresenterPage';
@@ -130,103 +130,273 @@ function PublicSharePage() {
   </section></main>;
 }
 
-function BirthProfileCards({ birthProfile }: { birthProfile: BirthProfileResult }) {
+function BirthProfileCore({ birthProfile }: { birthProfile: BirthProfileResult }) {
   const main = birthProfile.pyramid.main;
+  const coreInfo = CORE_NARRATIVES[main] ?? {
+    title: `${main} 號主題`,
+    tagline: '一個可以自行確認的觀察角度',
+    description: '這個角度提供一個整理線索的方式，請以自己的經驗確認是否有幫助。',
+    relatableHit: '可以想想：哪些生活情境和這個主題有連結？',
+  };
+  return (
+    <div className="mirror-core mirror-core--birth">
+      <div className="mirror-result-label">核心結果</div>
+      <h3>{coreInfo.title}</h3>
+      <p className="mirror-result-tagline">{coreInfo.tagline}</p>
+      <p>{coreInfo.description}</p>
+      <p className="mirror-reflection">{coreInfo.relatableHit}</p>
+    </div>
+  );
+}
+
+function BirthProfileExtension({ birthProfile }: { birthProfile: BirthProfileResult }) {
   const outer = birthProfile.pyramid.outerComposite;
   const inner = birthProfile.pyramid.innerComposite;
   const stage = birthProfile.currentStage;
-  const coreInfo = CORE_NARRATIVES[main] ?? {
-    title: `${main} 號特質`,
-    tagline: '獨特的核心天賦',
-    description: '具備獨特的思考與行動風格。',
-    relatableHit: '在適合你的環境中能發揮獨特亮點。',
-  };
-  const tension = getProfileTension(outer, inner);
-
   return (
-    <div className="birth-profile-compact" style={{ marginTop: 28 }}>
-      <small>第一面鏡子 · 出生結構與天賦密碼</small>
-      <div className="birth-profile-cards">
-        <div><b>{main}</b><span>核心天賦本色</span></div>
-        <div><b>{outer}</b><span>外在處事風格</span></div>
-        <div><b>{inner}</b><span>內在深層渴望</span></div>
-        <div><b>{stage.number ?? '—'}</b><span>{stage.label}</span></div>
+    <details className="mirror-extension">
+      <summary>查看其他反思提示</summary>
+      <div className="mirror-extension__list">
+        <div><strong>外在角度 · {outer} 號</strong><p>{OUTER_NARRATIVES[outer] ?? '可以觀察你如何面對外界。'}</p></div>
+        <div><strong>內在角度 · {inner} 號</strong><p>{INNER_NARRATIVES[inner] ?? '可以想想你重視的條件。'}</p></div>
+        {stage.number ? <div><strong>補充角度 · {stage.number} 號</strong><p>這個角度可以作為近期觀察的提示，請以自己的生活經驗確認它是否有幫助。</p></div> : null}
+        <div><strong>兩個角度放在一起</strong><p>{getProfileTension(outer, inner)}</p></div>
       </div>
-
-      <div className="birth-insight-box">
-        <div className="birth-insight-header">
-          <h3>出生日期特質深度解密</h3>
-          <span>你的專屬特質解析</span>
-        </div>
-
-        <div className="insight-item">
-          <div className="insight-item-title">
-            <span className="insight-tag insight-tag--core">🌟 核心天賦 · {main} 號</span>
-            <strong>{coreInfo.title}（{coreInfo.tagline}）</strong>
-          </div>
-          <p className="insight-desc">{coreInfo.description}</p>
-          <div className="insight-hit">💡 戳中心聲：{coreInfo.relatableHit}</div>
-        </div>
-
-        <div className="insight-item">
-          <div className="insight-item-title">
-            <span className="insight-tag insight-tag--outer">🎭 外在風格 · {outer} 號</span>
-            <strong>別人眼中的你</strong>
-          </div>
-          <p className="insight-desc">{OUTER_NARRATIVES[outer] ?? '展現出獨特的個人氣場。'}</p>
-        </div>
-
-        <div className="insight-item">
-          <div className="insight-item-title">
-            <span className="insight-tag insight-tag--inner">💭 內在渴望 · {inner} 號</span>
-            <strong>私底下的真實心聲</strong>
-          </div>
-          <p className="insight-desc">{INNER_NARRATIVES[inner] ?? '內心保有深層的個人渴望。'}</p>
-        </div>
-
-        {stage.number ? (
-          <div className="insight-item">
-            <div className="insight-item-title">
-              <span className="insight-tag insight-tag--stage">🌱 人生階段 · {stage.number} 號</span>
-              <strong>目前處於：{stage.label}</strong>
-            </div>
-            <p className="insight-desc">
-              當前階段的核心課題是學習並發揮 {stage.number} 號能量，這也是你這幾年最有感、最能累積成熟度的成長契機。
-            </p>
-          </div>
-        ) : null}
-
-        <div className="insight-tension-card">
-          <small>⚡ 內外在反差與真實寫照</small>
-          <p>{tension}</p>
-        </div>
-      </div>
-    </div>
+    </details>
   );
 }
 
 function RiasecScoreSummary({ riasecResult }: { riasecResult: RiasecResult }) {
   return (
     <div className="score-summary">
-      <p className="top-code">{riasecResult.top3Code}</p>
-      <div className="top-cards">
-        {riasecResult.top3.map((code) => (
-          <div className="top-card" key={code} style={{ '--accent': RIASEC_META[code].color } as CSSProperties}>
-            <span>{code}</span>
-            <p>{RIASEC_META[code].name}</p>
-            <small>{RIASEC_META[code].verb} · {riasecResult.scores[code].normalized} 分</small>
-          </div>
-        ))}
-      </div>
+      <p className="score-scale">換算分數 0–100（原始答題 3–12）</p>
       <dl className="score-list">
         {Object.values(riasecResult.scores).map((score) => (
           <div key={score.code}>
-            <dt>{score.code} · {RIASEC_META[score.code].name}</dt>
-            <dd><span style={{ width: `${score.normalized}%` }} />{score.normalized}</dd>
+            <dt><b style={{ color: RIASEC_META[score.code].color }}>{score.code}</b><span>{RIASEC_META[score.code].name}</span></dt>
+            <dd><span className="score-list__track"><i className="score-list__bar" style={{ width: `${score.normalized}%`, background: RIASEC_META[score.code].color }} /></span><b>{score.normalized}</b></dd>
           </div>
         ))}
       </dl>
     </div>
+  );
+}
+
+const RIASEC_ACTIVITY_DESCRIPTIONS: Record<RiasecCode, string> = {
+  R: '操作工具、動手製作、實際嘗試',
+  I: '理解原因、比較資訊、釐清問題',
+  A: '發想不同做法、設計與表達想法',
+  S: '聆聽他人、陪伴成長、分享經驗',
+  E: '發起行動、連結資源、推動目標',
+  C: '整理資訊、安排步驟、建立流程',
+};
+
+function RiasecPreferenceReading({ riasecResult }: { riasecResult: RiasecResult }) {
+  const names = riasecResult.top3.map((code) => RIASEC_META[code].name.replace('型', '')).join('、');
+  const first = RIASEC_ACTIVITY_DESCRIPTIONS[riasecResult.top3[0]].split('、')[0];
+  const second = RIASEC_ACTIVITY_DESCRIPTIONS[riasecResult.top3[1]].split('、')[0];
+  return (
+    <>
+      <p className="mirror-reading">你的回答較偏向{names}相關的活動。可以留意：當你能從「{first}」開始，再接著「{second}」時，你是否比較容易投入？</p>
+      <ul className="activity-preference-list">
+        {riasecResult.top3.map((code) => (
+          <li key={code}>
+            <span className="activity-preference-code" style={{ color: RIASEC_META[code].color }}>{code}</span>
+            <span><strong>{RIASEC_META[code].name}</strong><small>{RIASEC_ACTIVITY_DESCRIPTIONS[code]}</small></span>
+          </li>
+        ))}
+      </ul>
+      <p className="mirror-reflection">對照一下：最近哪一件事讓你有機會用到這些偏好？</p>
+    </>
+  );
+}
+
+function MirrorSection({ id, number, title, description, accent, children }: {
+  id: string;
+  number: string;
+  title: string;
+  description: string;
+  accent: 'birth' | 'activity' | 'feeling';
+  children: ReactNode;
+}) {
+  const ordinal = ({ '01': '一', '02': '二', '03': '三' } as Record<string, string>)[number] ?? number;
+  return (
+    <section id={id} className={`mirror-section mirror-section--${accent}`} aria-labelledby={`${id}-title`}>
+      <header className="mirror-section__header">
+        <span className="mirror-section__number" aria-hidden="true">{number}</span>
+        <div>
+          <h3 id={`${id}-title`}>第{ordinal}面鏡子｜{title}</h3>
+          <p>{description}</p>
+        </div>
+      </header>
+      <div className="mirror-section__body">{children}</div>
+    </section>
+  );
+}
+
+function MirrorQuickSummary({
+  lifePathValue,
+  lifePathLabel,
+  riasecResult,
+  talentUsage,
+  priorities,
+}: {
+  lifePathValue: number;
+  lifePathLabel: string;
+  riasecResult: RiasecResult;
+  talentUsage: number | string;
+  priorities: string[];
+}) {
+  return (
+    <section className="mirror-quick-summary" aria-labelledby="mirror-quick-summary-title">
+      <h2 id="mirror-quick-summary-title">三面鏡子快速摘要</h2>
+      <div className="mirror-quick-summary__grid">
+        <a href="#mirror-1" className="mirror-quick-card mirror-quick-card--birth">
+          <span className="mirror-quick-card__number">01</span>
+          <span className="mirror-quick-card__content"><strong>出生日期反思</strong><small>{lifePathValue} · {lifePathLabel}</small></span>
+          <span className="mirror-quick-card__arrow" aria-hidden="true">↓</span>
+        </a>
+        <a href="#mirror-2" className="mirror-quick-card mirror-quick-card--activity">
+          <span className="mirror-quick-card__number">02</span>
+          <span className="mirror-quick-card__content"><strong>活動偏好</strong><small>{riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</small></span>
+          <span className="mirror-quick-card__arrow" aria-hidden="true">↓</span>
+        </a>
+        <a href="#mirror-3" className="mirror-quick-card mirror-quick-card--feeling">
+          <span className="mirror-quick-card__number">03</span>
+          <span className="mirror-quick-card__content"><strong>當下感受</strong><small>{talentUsage}% 使用感{priorities[0] ? ` · ${priorities[0]}` : ''}</small></span>
+          <span className="mirror-quick-card__arrow" aria-hidden="true">↓</span>
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function DetailedResultSections({
+  lifePathValue,
+  lifePathLabel,
+  lifePathCoreMotivation,
+  lifePathReflectionQuestion,
+  riasecResult,
+  birthProfile,
+  subjectiveDriver,
+  talentUsage,
+  priorities,
+  explorationInterest,
+  reflections,
+}: {
+  lifePathValue: number;
+  lifePathLabel: string;
+  lifePathCoreMotivation: string;
+  lifePathReflectionQuestion: string;
+  riasecResult: RiasecResult;
+  birthProfile?: BirthProfileResult;
+  subjectiveDriver?: RiasecCode;
+  talentUsage: number | string;
+  priorities: string[];
+  explorationInterest?: string;
+  reflections?: { energizingExperience?: string; currentFriction?: string; unconstrainedExploration?: string };
+}) {
+  const prioritySummary = priorities.length ? `你目前較關注：${priorities.join('、')}。` : null;
+  return (
+    <section className="mirrors-detail" aria-labelledby="mirrors-detail-title">
+      <h2 id="mirrors-detail-title">進一步看三面鏡子</h2>
+      <MirrorSection id="mirror-1" number="01" title="出生日期反思" description="以出生日期解讀作為自我反思的提示。" accent="birth">
+        {birthProfile ? <BirthProfileCore birthProfile={birthProfile} /> : (
+          <div className="mirror-core mirror-core--birth"><p>目前沒有出生日期資料，這一面先略過。</p></div>
+        )}
+        <p className="mirror-result-meta">生命靈數 {lifePathValue} · {lifePathLabel}｜{lifePathCoreMotivation}</p>
+        <p className="mirror-reflection">{lifePathReflectionQuestion}</p>
+        <p className="mirror-caveat">僅供自我反思，不代表命定的人格或人生。</p>
+        {birthProfile ? <BirthProfileExtension birthProfile={birthProfile} /> : null}
+      </MirrorSection>
+
+      <MirrorSection id="mirror-2" number="02" title="活動偏好" description="看看哪些活動，比較容易讓你想投入。" accent="activity">
+        <RiasecPreferenceReading riasecResult={riasecResult} />
+        <RiasecScoreSummary riasecResult={riasecResult} />
+        <p className="mirror-caveat">反映活動偏好，不等同能力或職業適性。</p>
+        <details className="mirror-extension">
+          <summary>查看偏好雷達圖</summary>
+          <RadarChart scores={riasecResult.scores} />
+        </details>
+      </MirrorSection>
+
+      <MirrorSection id="mirror-3" number="03" title="當下感受" description="你現在的感受，以及希望改變的地方。" accent="feeling">
+        <div className="feeling-highlight"><strong>天賦使用感 {talentUsage}%</strong><small>你的主觀感受，不是能力分數。</small></div>
+        <ul className="feeling-facts">
+          {subjectiveDriver && <li><span>能量線索</span><strong>{energyLabel(subjectiveDriver)}</strong></li>}
+          {prioritySummary && <li><span>目前最關注</span><strong>{priorities.join('、')}</strong></li>}
+          {explorationInterest && <li><span>探索意願</span><strong>{explorationInterest}</strong></li>}
+        </ul>
+        {reflections?.energizingExperience || reflections?.currentFriction ? (
+          <div className="feeling-reflections">
+            {reflections.energizingExperience ? <p><strong>讓你有發揮的時刻</strong>{reflections.energizingExperience}</p> : null}
+            {reflections.currentFriction ? <p><strong>比較卡住的地方</strong>{reflections.currentFriction}</p> : null}
+          </div>
+        ) : <p className="mirror-reflection">最近哪一件事讓你覺得有發揮？哪一件事比較卡住？</p>}
+      </MirrorSection>
+    </section>
+  );
+}
+
+function AIReportSummary({ report, expanded, onToggle }: { report: AIReport; expanded: boolean; onToggle: () => void }) {
+  const firstDirection = report.exploration_directions[0] ?? '先觀察一個讓你投入或耗損的時刻，記下當時的條件。';
+  return (
+    <section className="ai-report" aria-labelledby="ai-report-title">
+      <header className="ai-report__header">
+        <div>
+          <small>AI 綜合解析</small>
+          <h2 id="ai-report-title">把三面鏡子放在一起整理</h2>
+        </div>
+        <span className="ai-report__note">自我反思參考</span>
+      </header>
+      <div className="ai-report__summary-copy">
+        <h3>一句核心理解</h3>
+        <p><AIHighlightedText text={report.summary} /></p>
+      </div>
+      <div className="ai-report__summary-copy ai-report__summary-copy--action">
+        <h3>一個可以嘗試的小行動</h3>
+        <p><AIHighlightedText text={firstDirection} /></p>
+      </div>
+      <button className="analysis-toggle" type="button" aria-expanded={expanded} aria-controls="full-ai-analysis" onClick={onToggle}>
+        {expanded ? '收起完整解析' : '查看完整解析'}
+      </button>
+      {expanded ? (
+        <div id="full-ai-analysis" className="ai-report__full">
+          <div className="ai-report__detail">
+            <h3>這次回答反覆出現的線索</h3>
+            <ul>{report.repeated_signals.slice(0, 3).map((signal, index) => <li key={`signal-${index}`}><AIHighlightedText text={signal} /></li>)}</ul>
+          </div>
+          <div className="ai-report__detail">
+            <h3>第一面鏡子｜出生日期反思</h3>
+            <p><AIHighlightedText text={report.birth_profile_summary} /></p>
+          </div>
+          <div className="ai-report__detail">
+            <h3>第二面鏡子｜活動偏好</h3>
+            <p><AIHighlightedText text={report.motivator_summary} /></p>
+          </div>
+          <div className="ai-report__detail">
+            <h3>第三面鏡子｜當下感受</h3>
+            <p><AIHighlightedText text={report.unused_potential} /></p>
+          </div>
+          {report.possible_tensions?.length ? (
+            <div className="ai-report__detail">
+              <h3>三個面向之間可以留意的地方</h3>
+              <ul>{report.possible_tensions.map((item, index) => <li key={`tension-${index}`}><AIHighlightedText text={item} /></li>)}</ul>
+            </div>
+          ) : null}
+          {report.exploration_directions.slice(1).length ? (
+            <div className="ai-report__detail">
+              <h3>其他小方向</h3>
+              <ul>{report.exploration_directions.slice(1).map((item, index) => <li key={`direction-${index}`}><AIHighlightedText text={item} /></li>)}</ul>
+            </div>
+          ) : null}
+          <div className="ai-report__detail">
+            <h3>給自己的下一個問題</h3>
+            <p><AIHighlightedText text={report.reflection_question} /></p>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -489,7 +659,7 @@ function AssessmentApp() {
   }, [draft.subjectiveDriver, riasecResult]);
 
   if (completedAssessment) {
-    return <ServerReport assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} isGenerating={isGeneratingReport} onRetry={() => void requestReport(completedAssessment.assessmentId)} onRestart={returnHome} />;
+    return <ServerReport key={completedAssessment.assessmentId} assessment={completedAssessment} report={serverReport} persistenceError={persistenceError} isGenerating={isGeneratingReport} onRetry={() => void requestReport(completedAssessment.assessmentId)} onRestart={returnHome} />;
   }
 
   return (
@@ -573,7 +743,7 @@ function AssessmentApp() {
               <div><small>容易發光</small><p>{lifePathContent.strengths[0]}</p></div>
               <div><small>容易耗能</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
-            {draft.birthProfile ? <BirthProfileCards birthProfile={draft.birthProfile} /> : null}
+            {draft.birthProfile ? <><BirthProfileCore birthProfile={draft.birthProfile} /><BirthProfileExtension birthProfile={draft.birthProfile} /></> : null}
             <div className="action-row">
               <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
               <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'resonance' })}>這段有沒有打中你？</button>
@@ -790,28 +960,29 @@ function AssessmentApp() {
 
         {draft.step === 'report' && lifePathContent && riasecResult ? (
           <section className="panel report-panel entrance">
-            <p className="eyebrow">你的探索摘要</p>
-            <h1>把三面鏡子放在一起看</h1>
-            <p className="lede">這裡呈現的是你提供的回答與計算結果；它們可以成為你接下來觀察自己的線索。</p>
-            <div className="report-grid">
-              <article><small>第一面鏡子 · 自我反思</small><strong>{draft.lifePath?.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
-              <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{riasecResult.top3Code}</strong><p>{riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
-              <article><small>本人能量線索</small><strong>{energyLabel(draft.subjectiveDriver)}</strong><p>{subjectiveComparison?.title ?? '這是你親自選擇的能量線索。'}</p></article>
-              <article><small>第三面鏡子 · 天賦使用感</small><strong>{draft.talentUsage ?? '—'}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
-              <article><small>目前最關注</small><strong>{draft.priorities.join('、')}</strong><p>探索意願：{draft.explorationInterest}</p></article>
-            </div>
-
-            {draft.birthProfile ? <BirthProfileCards birthProfile={draft.birthProfile} /> : null}
-
-            <div className="results-layout" style={{ marginTop: 32 }}>
-              <RadarChart scores={riasecResult.scores} />
-              <RiasecScoreSummary riasecResult={riasecResult} />
-            </div>
-
-            {subjectiveComparison ? (
-              <div className="reflection-card"><small>{subjectiveComparison.title}</small><p>{subjectiveComparison.text}</p></div>
-            ) : null}
-            <div className="reflection-card"><small>留給自己的問題</small><p>{lifePathContent.reflectionQuestion}</p></div>
+            <h1>你的探索結果</h1>
+            <p className="lede">先讀一小段，再決定要不要往下看更多。</p>
+            <div className="local-result-note">本機暫存結果 · 尚未同步保存</div>
+            <MirrorQuickSummary
+              lifePathValue={lifePathContent.value}
+              lifePathLabel={lifePathContent.label}
+              riasecResult={riasecResult}
+              talentUsage={draft.talentUsage ?? '—'}
+              priorities={draft.priorities}
+            />
+            <DetailedResultSections
+              lifePathValue={lifePathContent.value}
+              lifePathLabel={lifePathContent.label}
+              lifePathCoreMotivation={lifePathContent.coreMotivation}
+              lifePathReflectionQuestion={lifePathContent.reflectionQuestion}
+              riasecResult={riasecResult}
+              birthProfile={draft.birthProfile}
+              subjectiveDriver={draft.subjectiveDriver}
+              talentUsage={draft.talentUsage ?? '—'}
+              priorities={draft.priorities}
+              explorationInterest={draft.explorationInterest}
+              reflections={draft.reflections}
+            />
             {persistenceError ? (
               <div className="reflection-card" style={{ borderLeftColor: '#a95143', marginTop: 20 }}>
                 <small style={{ color: '#a95143' }}>保存提示</small>
@@ -855,59 +1026,40 @@ function ServerReport({
   onRestart: () => void;
 }) {
   const lifePathContent = LIFE_PATH_CONTENT[assessment.lifePath.value];
-  const top1 = assessment.riasecResult.top3[0];
-  const energyComparison = assessment.subjectiveDriver === top1
-    ? '兩個角度出現相同線索'
-    : '兩個角度照到不同線索';
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   return (
     <main className="site-shell">
       <section className="journey" aria-live="polite">
         <section className="panel report-panel entrance">
-          <p className="eyebrow">你的探索摘要</p>
-          <h1>把三面鏡子放在一起看</h1>
-          <p className="lede">這裡呈現的是已保存的回答與伺服器重新驗證的計算結果；它們可以成為你接下來觀察自己的線索。</p>
-          <div className="report-grid">
-            <article><small>第一面鏡子 · 自我反思</small><strong>{assessment.lifePath.value} · {lifePathContent.label}</strong><p>{lifePathContent.coreMotivation}</p></article>
-            <article><small>第二面鏡子 · 活動偏好 Top 3</small><strong>{assessment.riasecResult.top3Code}</strong><p>{assessment.riasecResult.top3.map((code) => RIASEC_META[code].name).join('、')}</p></article>
-            <article><small>本人能量線索</small><strong>{energyLabel(assessment.subjectiveDriver)}</strong><p>{energyComparison}</p></article>
-            <article><small>第三面鏡子 · 天賦使用感</small><strong>{assessment.talentUsage}%</strong><p>這是你的主觀感受，不是精確能力測量。</p></article>
-            <article><small>目前最關注</small><strong>{assessment.priorities.join('、')}</strong><p>探索意願：{assessment.explorationInterest}</p></article>
-          </div>
-
-          {assessment.birthProfile ? <BirthProfileCards birthProfile={assessment.birthProfile} /> : null}
-
-          <div className="results-layout" style={{ marginTop: 32 }}>
-            <RadarChart scores={assessment.riasecResult.scores} />
-            <RiasecScoreSummary riasecResult={assessment.riasecResult} />
-          </div>
-
-          <div className="reflection-card" style={{ marginTop: 24 }}>
-            <small>{energyComparison}</small>
-            <p>你的主觀能量線索與活動偏好都是值得繼續觀察的資料，不需要判斷哪一個更正確。</p>
-          </div>
-
+          <h1>你的探索結果</h1>
+          <p className="lede">你剛才留下的回答已保存。先讀一小段，再決定要不要往下看更多。</p>
+          <p className="saved-result-note" role="status">探索結果已保存</p>
+          <MirrorQuickSummary
+            lifePathValue={assessment.lifePath.value}
+            lifePathLabel={lifePathContent.label}
+            riasecResult={assessment.riasecResult}
+            talentUsage={assessment.talentUsage}
+            priorities={assessment.priorities}
+          />
           {report ? (
-            <section className="ai-report" aria-labelledby="ai-report-title">
-              <header className="ai-report__header">
-                <div>
-                  <small>AI 綜合解析</small>
-                  <h2 id="ai-report-title">先讀這些重點，再回到生活裡驗證</h2>
-                </div>
-                <span className="ai-report__note">自我反思參考</span>
-              </header>
-              <AIInsightBlock label="先看這一句" value={report.summary} tone="summary" />
-              <AIInsightBlock label="反覆出現的線索" value={report.repeated_signals} tone="signals" />
-              <AIInsightBlock label="出生結構這面鏡子" value={report.birth_profile_summary} tone="profile" />
-              <AIInsightBlock label="可能的原動力" value={report.motivator_summary} tone="motivator" />
-              <AIInsightBlock label="可以再發揮的空間" value={report.unused_potential} tone="potential" />
-              {report.possible_tensions?.length ? <AIInsightBlock label="同時在乎的兩件事" value={report.possible_tensions} tone="tension" /> : null}
-              {report.exploration_directions?.length ? <AIInsightBlock label="可以先試的小方向" value={report.exploration_directions} tone="exploration" /> : null}
-              <AIInsightBlock label="給自己的下一個問題" value={report.reflection_question} tone="question" />
-            </section>
+            <AIReportSummary report={report} expanded={showFullAnalysis} onToggle={() => setShowFullAnalysis((current) => !current)} />
           ) : (
             <AIGenerationProgress isGenerating={isGenerating} />
           )}
+          <DetailedResultSections
+            lifePathValue={assessment.lifePath.value}
+            lifePathLabel={lifePathContent.label}
+            lifePathCoreMotivation={lifePathContent.coreMotivation}
+            lifePathReflectionQuestion={lifePathContent.reflectionQuestion}
+            riasecResult={assessment.riasecResult}
+            birthProfile={assessment.birthProfile}
+            subjectiveDriver={assessment.subjectiveDriver}
+            talentUsage={assessment.talentUsage}
+            priorities={assessment.priorities}
+            explorationInterest={assessment.explorationInterest}
+            reflections={assessment.reflections}
+          />
           {!report ? <button className="primary-button" type="button" disabled={isGenerating} onClick={onRetry}>
             {isGenerating ? '正在產生 AI 解析…' : '重新產生 AI 解析'}
           </button> : null}
@@ -1023,32 +1175,27 @@ function Landing({
         <img src="/landing-hero.webp" alt="" width="1600" height="901" fetchPriority="high" decoding="async" />
       </picture>
       <div className="landing-wash" aria-hidden="true" />
-      <p className="landing-corner-copy landing-corner-copy--left" aria-hidden="true">
-        EXPLORE<br />YOUR NATURE<br /><span>LIVE A BRIGHTER YOU</span>
-      </p>
-      <p className="landing-corner-copy landing-corner-copy--right" aria-hidden="true">
-        認識自己<br />看見可能<br />創造屬於你的美好人生
-      </p>
       <div className="landing-copy">
-        <p className="eyebrow">三面鏡子，不替你下定義</p>
-        <h1>看見天賦，<br /><em>找到原動力。</em></h1>
-        <p className="landing-lede">看見天賦・找到原動力・增加人生的選擇。從一個自我反思入口、一組活動偏好，和你此刻的感受開始。</p>
+        <p className="eyebrow">給自己 5 分鐘</p>
+        <h1>看見天賦，<br /><em>找到原動力</em></h1>
+        <p className="landing-lede">從你喜歡的事，發現更能發揮自己的可能。</p>
         {isRestoringPrevious ? <p className="landing-previous-status" role="status">正在確認你是否有上次的探索結果…</p> : null}
         <button className="primary-button" disabled={auth.status === 'loading'} type="button" onClick={needsLogin ? onLogin : onStart}>
-          {auth.status === 'loading' ? '正在確認身份…' : needsLogin ? '使用 LINE 登入後開始探索' : '開始探索我的天賦'}
+          {auth.status === 'loading' ? '正在確認身份…' : needsLogin ? '使用 LINE 登入後開始探索' : '開始探索'}
         </button>
         {previousAssessment ? (
-          <div className="landing-previous">
-            <small>上次的探索已經保存</small>
-            <p>你可以先回顧上次的線索，也可以重新回答，看看此刻的自己有什麼新發現。</p>
-            <button className="secondary-button" type="button" onClick={onViewPrevious}>查看上次結果</button>
+          <div className="landing-previous landing-previous--link">
+            <small>上次結果已保存</small>
+            <button className="text-button" type="button" onClick={onViewPrevious}>回顧上次結果</button>
           </div>
         ) : null}
         {auth.status === 'unavailable' ? <p className="disclaimer">目前以本機草稿模式進行；連線恢復後即可安全保存結果。</p> : null}
-        <p className="landing-footnote">約 5 分鐘 · 沒有標準答案，也不是考試</p>
-      </div>
-      <div className="landing-signature" aria-hidden="true">
-        <span>Birth Profile</span><b>×</b><span>RIASEC</span><b>×</b><span>Reflection</span>
+        <p className="landing-footnote">約 5 分鐘・沒有標準答案</p>
+        <details className="landing-method">
+          <summary>這個探索包含什麼？</summary>
+          <p>從活動偏好、當下感受與出生日期的反思提示，整理認識自己的線索。出生日期解讀僅供自我反思參考。</p>
+          <p className="landing-method__label">Birth Profile × RIASEC × Reflection</p>
+        </details>
       </div>
     </section>
   );

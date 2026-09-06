@@ -182,7 +182,7 @@ export class LarkRepositories implements Repositories {
           const parsed = JSON.parse(serialized) as Partial<AIReport>;
           return {
             ...parsed,
-            birth_profile_summary: parsed.birth_profile_summary ?? '出生結構可作為觀察自己的象徵語言，請與實際經驗一起理解。',
+            birth_profile_summary: parsed.birth_profile_summary ?? '出生日期只提供一個象徵角度；如果有共鳴，可以想想它和哪些生活經驗連得上。',
             unused_potential: parsed.unused_potential ?? '可以從一個小任務開始觀察天賦使用感的變化。',
           } as AIReport;
         } catch { throw new HttpError(502, 'lark_invalid_response', 'AI 報告資料格式無效。'); }

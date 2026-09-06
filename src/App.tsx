@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChoiceButton } from './components/ChoiceButton';
 import { AIHighlightedText } from './components/AIInsight';
+import { FormattedText } from './components/FormattedText';
+import { RiasecHumanInsightCard } from './components/RiasecHumanInsightCard';
+import { TransitionBadgesGrid } from './components/TransitionBadgesGrid';
 import { ProgressHeader } from './components/ProgressHeader';
 import { RadarChart } from './components/RadarChart';
 import { PresenterPage } from './components/PresenterPage';
@@ -187,16 +190,16 @@ function WorkplaceDiagnosisCard({
       <div className="workplace-notes-grid">
         <div className="workplace-note workplace-note--thrive">
           <strong>✨ 當你感到順流、很有成就感時</strong>
-          <p>{diagnosis.thriving}</p>
+          <p><FormattedText text={diagnosis.thriving} /></p>
         </div>
         <div className="workplace-note workplace-note--friction">
           <strong>🌧️ 當你在目前工作中感到極度內耗、很不順時（痛點雷區）</strong>
-          <p>{diagnosis.friction}</p>
+          <p><FormattedText text={diagnosis.friction} /></p>
         </div>
       </div>
       <div className="workplace-note workplace-note--guidance">
         <strong>🚀 接下來可以怎麼協助你（破局與調整方向）</strong>
-        <p>{diagnosis.guidance}</p>
+        <p><FormattedText text={diagnosis.guidance} /></p>
       </div>
     </div>
   );
@@ -259,18 +262,18 @@ function RiasecTopThree({ riasecResult, showScores = true }: { riasecResult: Ria
 }
 
 const LIFE_PATH_DAILY_PROFILES: Record<number, string> = {
-  1: '在你的骨子裡，最能點燃你的是「能按照自己的想法踏出第一步」。你討厭被動等待每個決定都要他人拍板，那會讓你有手腳被綁住的無力感；一旦擁有主導空間，你的專注與衝勁會立刻甦醒。',
-  2: '在你的骨子裡，最重視的是「真誠的信任與互動品質」。當身邊的人能夠彼此傾聽、同理協作時，你會感到無比安心且充滿力量；相反地，若身處勾心鬥角或衝突不斷的環境，你的心力會被迅速耗盡。',
-  3: '在你的骨子裡，最需要的是「能自由表達自我並被看見」。當你能用自己的方式把點子、故事或創意說出來，並得到共鳴時，整個人會閃閃發光；若是被困在高度死板且無法表達的流程裡，心裡會感到極度壓抑。',
-  4: '在你的骨子裡，最追求的是「踏實的秩序與完成感」。當事情有清楚的脈絡、可靠的流程，你能一步一腳印把它做好時，你會感到無比踏實；最怕的就是規則反覆無常、承諾不算數，那會讓你極度焦慮與心累。',
-  5: '在你的骨子裡，最怕的從來不是辛苦，而是「被困在沒有彈性的死規矩裡」。當環境能給你嘗試新做法的自由時，你的適應力與靈感會自然湧現；可一旦所有事都被規定死、看不到任何轉圜餘地，你的心力就會被瞬間抽空。',
-  6: '在你的骨子裡，最渴望的是「用真心照顧所愛，且被溫柔珍惜」。當你的付出能為人帶來實質幫助、且被好好看見時，你的價值感會無比充沛；但若責任被視為理所當然、且沒有喘息界線時，你會感到深深的心碎與委屈。',
-  7: '在你的骨子裡，最需要的是「能把事情想明白的安靜空間」。當你能安靜沉澱、深入推敲出問題的本質時，你的洞察力無人能比；最怕的就是被催促著立刻表態，或是充斥著浮躁無效的表面社交，那會讓你只想立刻抽離。',
-  8: '在你的骨子裡，最在乎的是「努力能不能換來實實在在的成果與進展」。當你有明確目標、能調動資源把事情往前推進時，你會無比興奮且幹勁十足；最怕的就是付出毫無反饋，或是需要扛責任卻沒有施展權力的空轉。',
-  9: '在你的骨子裡，最堅持的是「事情背後有沒有深遠的意義與格局」。當你在做的事情能對他人、對社會產生正向影響時，你會願意傾注所有熱情；若是被迫做著違背初衷、只顧短期利益的瑣事，你的靈魂會感到難以忍受的疲憊。',
-  11: '在你的骨子裡，有一種極為敏銳的直覺與靈感雷達。當你能把細微的感受整理成啟發人心的觀點時，你的能量會無比充沛；最怕環境充滿嘈雜雜訊且缺乏沉澱時間，那會讓你的神經系統迅速超載。',
-  22: '在你的骨子裡，渴望把宏大的理想一步步落實成真正的系統與架構。當你能整合人與資源、看見大藍圖具體成形時，成就感無可比擬；最怕目標很大卻沒有可落地的路徑，或責任過重而讓自己喘不過氣。',
-  33: '在你的骨子裡，有一種陪伴他人成長、賦予他人力量的深層召喚。當你能引導別人走出困境、看見他人蛻變時，你的生命力最強烈；最怕把所有人的問題都攬在自己身上，忘記給自己留下被愛的餘裕。',
+  1: '在你的骨子裡，最能點燃你的是**「能按照自己的想法踏出第一步」**。你討厭被動等待每個決定都要他人拍板，那會讓你有**手腳被綁住的無力感**；一旦擁有**主導空間**，你的專注與衝勁會立刻甦醒。',
+  2: '在你的骨子裡，最重視的是**「真誠的信任與互動品質」**。當身邊的人能夠**彼此傾聽、同理協作**時，你會感到無比安心且充滿力量；相反地，若身處**勾心鬥角或衝突不斷**的環境，你的心力會被迅速耗盡。',
+  3: '在你的骨子裡，最需要的是**「能自由表達自我並被看見」**。當你能用自己的方式把點子、故事或創意說出來，並**得到共鳴**時，整個人會閃閃發光；若是被困在**高度死板且無法表達**的流程裡，心裡會感到極度壓抑。',
+  4: '在你的骨子裡，最追求的是**「踏實的秩序與完成感」**。當事情有**清楚的脈絡、可靠的流程**，你能一步一腳印把它做好時，你會感到無比踏實；最怕的就是**規則反覆無常、承諾不算數**，那會讓你極度焦慮與心累。',
+  5: '在你的骨子裡，最怕的從來不是辛苦，而是**「被困在沒有彈性的死規矩裡」**。當環境能給你**嘗試新做法的自由**時，你的適應力與靈感會自然湧現；可一旦**所有事都被規定死、看不到轉圜餘地**，你的心力就會被瞬間抽空。',
+  6: '在你的骨子裡，最渴望的是**「用真心照顧所愛，且被溫柔珍惜」**。當你的付出能為人帶來實質幫助、且**被好好看見**時，你的價值感會無比充沛；但若**責任被視為理所當然、沒有喘息界線**時，你會感到深深的心碎與委屈。',
+  7: '在你的骨子裡，最需要的是**「能把事情想明白的安靜空間」**。當你能**安靜沉澱、深入推敲出問題本質**時，你的洞察力無人能比；最怕的就是**被催促著立刻表態**，或是充斥著**浮躁無效的表面社交**，那會讓你只想立刻抽離。',
+  8: '在你的骨子裡，最在乎的是**「努力能不能換來實實在在的成果與進展」**。當你有**明確目標、能調動資源**把事情往前推進時，你會無比興奮且幹勁十足；最怕的就是**付出毫無反饋，或有責無權的空轉**。',
+  9: '在你的骨子裡，最堅持的是**「事情背後有沒有深遠的意義與格局」**。當你在做的事情能對他人、對社會產生**正向影響**時，你會願意傾注所有熱情；若是被迫做著**違背初衷、只顧短期利益的瑣事**，你的靈魂會感到難以忍受的疲憊。',
+  11: '在你的骨子裡，有一種極為敏銳的**直覺與靈感雷達**。當你能把細微感受整理成**啟發人心的觀點**時，你的能量會無比充沛；最怕環境充滿**嘈雜雜訊且缺乏沉澱時間**，那會讓你的神經系統迅速超載。',
+  22: '在你的骨子裡，渴望把宏大的理想一步步落實成**真正的系統與架構**。當你能**整合人與資源、看見大藍圖具體成形**時，成就感無可比擬；最怕**目標很大卻沒有落地路徑**，或責任過重而讓自己喘不過氣。',
+  33: '在你的骨子裡，有一種陪伴他人成長、賦予他人力量的**深層召喚**。當你能**引導別人走出困境、看見他人蛻變**時，你的生命力最強烈；最怕**把所有人的問題都攬在自己身上**，忘記給自己留下被愛的餘裕。',
 };
 
 function lifePathDailyReading(content: typeof LIFE_PATH_CONTENT[keyof typeof LIFE_PATH_CONTENT]): string {
@@ -390,7 +393,7 @@ function DetailedResultSections({
           <div className="mirror-core mirror-core--birth"><p>目前沒有出生日期資料，這一面先略過。</p></div>
         )}
         <p className="mirror-result-meta">生命靈數 {lifePathValue} · {lifePathLabel}｜{lifePathCoreMotivation}</p>
-        <p className="life-path-daily-reading">{lifePathDailyReading(LIFE_PATH_CONTENT[lifePathValue as keyof typeof LIFE_PATH_CONTENT])}</p>
+        <p className="life-path-daily-reading"><FormattedText text={lifePathDailyReading(LIFE_PATH_CONTENT[lifePathValue as keyof typeof LIFE_PATH_CONTENT])} /></p>
         <WorkplaceDiagnosisCard lifePathNumber={lifePathValue} birthSignature={birthSignature} />
         {lifePathTopResonance ? (
           <div className="life-path-resonance-note">
@@ -407,6 +410,7 @@ function DetailedResultSections({
       <MirrorSection id="mirror-2" number="02" title="活動偏好" description="看看哪些活動，比較容易讓你想投入。" accent="activity">
         <RiasecPreferenceReading riasecResult={riasecResult} />
         <RiasecScoreSummary riasecResult={riasecResult} />
+        <RiasecHumanInsightCard riasecResult={riasecResult} />
         <p className="mirror-caveat">反映活動偏好，不等同能力或職業適性。</p>
         <details className="mirror-extension">
           <summary>查看偏好雷達圖</summary>
@@ -854,7 +858,7 @@ function AssessmentApp() {
             <p className="life-motivation">你骨子裡的深層原動力：<strong>{lifePathContent.coreMotivation}</strong></p>
             <div className="life-daily-reading">
               <small>💡 日常心境的真實寫照</small>
-              <p>{lifePathDailyReading(lifePathContent)}</p>
+              <p><FormattedText text={lifePathDailyReading(lifePathContent)} /></p>
             </div>
             <div className="tag-list">{lifePathContent.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div>
             <div className="two-column-notes">
@@ -926,7 +930,7 @@ function AssessmentApp() {
             <p className="eyebrow">第二面鏡子</p>
             <h1>接著，看看什麼事情讓你想投入</h1>
             <p className="lede">接下來有 18 題。沒有標準答案，請依你平常最接近的狀態作答。</p>
-            <div className="mirror-row" aria-hidden="true"><span>做</span><span>想</span><span>創</span><span>幫</span><span>帶</span><span>整</span></div>
+            <TransitionBadgesGrid />
             <div className="action-row">
               <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
               <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'riasec' })}>開始回答</button>
@@ -984,6 +988,7 @@ function AssessmentApp() {
                 <p>{subjectiveComparison.text}</p>
               </div>
             ) : null}
+            <RiasecHumanInsightCard riasecResult={riasecResult} />
             <div className="action-row">
               <button className="text-button" type="button" onClick={goBack}>← 上一步</button>
               <button className="primary-button" type="button" onClick={() => patchDraft({ step: 'talent-usage' })}>看看第三面鏡子</button>

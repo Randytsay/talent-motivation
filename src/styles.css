@@ -570,21 +570,59 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .saving-progress-card { margin-top: 24px; padding: 22px 24px 19px; border: 1px solid rgba(181, 154, 102, .45); border-radius: 16px; background: linear-gradient(135deg, #fffaf1, #f5f8fb); box-shadow: 0 12px 30px rgba(36, 50, 71, .07); text-align: left; }
 .saving-subnote { margin: 12px 0 0; color: #7b818b; font-size: 13px; text-align: center; }
 
+.text-emphasis { font-weight: 700; color: var(--ink-strong); background: linear-gradient(180deg, transparent 62%, rgba(181, 154, 102, .24) 62%); padding: 0 2px; border-radius: 2px; }
+
 .workplace-diagnosis-card { max-width: 650px; margin: 24px auto 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper-strong); text-align: left; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, .03); }
 .workplace-diagnosis-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(246, 243, 237, .6), rgba(255, 255, 255, .9)); }
 .workplace-diagnosis-header small { color: var(--clay); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.workplace-diagnosis-header h4 { margin: 6px 0 4px; font-size: 16px; font-weight: 700; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; }
-.workplace-subtitle { margin: 0; color: #7b818b; font-size: 13px; line-height: 1.5; }
+.workplace-diagnosis-header h4 { margin: 6px 0 4px; font-size: 17px; font-weight: 700; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; }
+.workplace-subtitle { margin: 0; color: #5a6676; font-size: 14px; line-height: 1.55; }
 .workplace-notes-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
 .workplace-note { padding: 18px 22px; }
 .workplace-note--thrive { background: rgba(72, 140, 110, .04); }
 .workplace-note--friction { border-left: 1px solid var(--line); background: rgba(214, 90, 71, .04); }
 .workplace-note--guidance { padding: 18px 24px; background: rgba(181, 154, 102, .06); }
-.workplace-note strong { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-.workplace-note--thrive strong { color: #2e694d; }
-.workplace-note--friction strong { color: #a44335; }
-.workplace-note--guidance strong { color: #876729; }
-.workplace-note p { margin: 0; font-size: 13.5px; line-height: 1.7; color: #4a5260; }
+.workplace-note strong { display: block; font-size: 14px; font-weight: 700; margin-bottom: 7px; }
+.workplace-note--thrive strong { color: #245e43; }
+.workplace-note--friction strong { color: #9c3c2e; }
+.workplace-note--guidance strong { color: #7d5e22; }
+.workplace-note p { margin: 0; font-size: 15px; line-height: 1.78; color: #283446; }
+
+/* Transition Page Crystal Badges (方案 A) */
+.transition-badges-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 660px; margin: 32px auto 26px; }
+.transition-badge-card { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 7px; padding: 16px 14px; background: var(--badge-bg, rgba(255, 255, 255, .82)); backdrop-filter: blur(8px); border: 1px solid rgba(222, 215, 202, .9); border-top: 3px solid var(--badge-theme); border-radius: 14px; box-shadow: 0 4px 16px rgba(36, 50, 71, .04); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.transition-badge-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(36, 50, 71, .08); }
+.transition-badge-card__top { display: flex; align-items: center; gap: 7px; }
+.transition-badge-card__letter { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--badge-theme); color: #ffffff; font-weight: 800; font-size: 14px; letter-spacing: .02em; box-shadow: 0 2px 6px rgba(0, 0, 0, .12); }
+.transition-badge-card__english { font-size: 13.5px; font-weight: 600; color: var(--badge-theme); letter-spacing: .02em; }
+.transition-badge-card__bottom { display: flex; align-items: baseline; gap: 7px; }
+.transition-badge-card__verb { font-size: 19px; font-weight: 700; font-family: 'Noto Serif TC', serif; color: var(--ink-strong); }
+.transition-badge-card__essence { font-size: 13.5px; color: var(--ink); font-weight: 600; }
+
+/* RIASEC Human Insight Card (看透人心深度分析) */
+.riasec-human-card { max-width: 650px; margin: 28px auto 0; padding: 24px 26px; border: 1px solid var(--gold-soft); border-radius: 16px; background: rgba(255, 253, 249, .98); box-shadow: 0 6px 24px rgba(36, 50, 71, .05); text-align: left; }
+.riasec-human-card__header { display: flex; align-items: center; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.riasec-human-card__badge { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; color: #ffffff; font-size: 26px; font-weight: 800; box-shadow: 0 4px 12px rgba(0, 0, 0, .14); flex-shrink: 0; }
+.riasec-human-card__header-content { flex: 1; }
+.riasec-human-card__eyebrow { display: block; font-size: 12.5px; font-weight: 700; color: var(--gold-deep); letter-spacing: .06em; }
+.riasec-human-card__title { margin: 4px 0 0; font-size: 21px; font-weight: 700; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; }
+.riasec-human-card__tag { font-size: 15px; font-weight: 500; color: var(--ink-soft); margin-left: 6px; font-family: 'Noto Sans TC', system-ui, sans-serif; }
+.riasec-human-card__tagline { margin: 6px 0 0; font-size: 15px; font-style: italic; color: var(--clay); font-weight: 500; }
+.riasec-human-card__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+.riasec-human-card__item { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); }
+.riasec-human-card__item--soul { background: rgba(255, 250, 241, .9); border-color: var(--gold-soft); border-left: 3px solid var(--gold); }
+.riasec-human-card__item--pain { background: rgba(253, 246, 244, .9); border-color: var(--clay-soft); border-left: 3px solid var(--clay); }
+.riasec-human-card__item--fit { margin-top: 14px; background: rgba(244, 248, 250, .9); border-color: #d1dce6; border-left: 3px solid #507b9d; }
+.riasec-human-card__item h4 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--ink-strong); }
+.riasec-human-card__item p { margin: 0; font-size: 15px; line-height: 1.78; color: var(--ink); }
+.riasec-composite-box { margin-top: 20px; padding: 18px 20px; border-radius: 14px; background: linear-gradient(135deg, rgba(253, 251, 247, .98), rgba(245, 248, 251, .98)); border: 1px solid var(--line-strong); box-shadow: 0 2px 10px rgba(36, 50, 71, .03); }
+.riasec-composite-header small { display: block; font-size: 12.5px; font-weight: 700; color: var(--gold-deep); letter-spacing: .05em; }
+.riasec-composite-header h4 { margin: 4px 0 0; font-size: 18px; font-weight: 700; color: var(--ink-strong); font-family: 'Noto Serif TC', serif; }
+.riasec-composite-code { font-size: 16px; color: var(--gold-deep); font-family: 'Noto Sans TC', system-ui, sans-serif; margin-left: 5px; }
+.riasec-composite-tagline { margin: 5px 0 0; font-size: 14.5px; color: var(--clay); font-style: italic; }
+.riasec-composite-body { margin-top: 12px; }
+.riasec-composite-chem { margin: 0; font-size: 15px; line-height: 1.78; color: var(--ink-strong); }
+.riasec-composite-desc { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: var(--ink-soft); }
 
 
 /* Result page data rows use a fixed numeric column and a separate track. */
@@ -628,8 +666,33 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .choice-grid--three { grid-template-columns: 1fr; }
   .two-column-notes { grid-template-columns: 1fr; }
   .two-column-notes > div + div { border-top: 1px solid var(--line); border-left: 0; }
+  .workplace-diagnosis-header { padding: 16px 16px 14px; }
+  .workplace-diagnosis-header h4 { font-size: 17px; line-height: 1.45; }
+  .workplace-subtitle { font-size: 14px; line-height: 1.6; color: #505d70; }
   .workplace-notes-grid { grid-template-columns: 1fr; }
+  .workplace-note { padding: 15px 16px; }
+  .workplace-note strong { font-size: 14.5px; margin-bottom: 6px; }
+  .workplace-note p { font-size: 15.5px; line-height: 1.8; color: #202b3c; }
   .workplace-note--friction { border-left: 0; border-top: 1px solid var(--line); }
+  .transition-badges-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 24px auto 20px; }
+  .transition-badge-card { padding: 13px 10px; }
+  .transition-badge-card__letter { width: 24px; height: 24px; font-size: 13px; }
+  .transition-badge-card__english { font-size: 13px; }
+  .transition-badge-card__verb { font-size: 18px; }
+  .transition-badge-card__essence { font-size: 13px; }
+  .riasec-human-card { padding: 18px 16px; margin-top: 22px; }
+  .riasec-human-card__badge { width: 48px; height: 48px; font-size: 22px; border-radius: 12px; }
+  .riasec-human-card__title { font-size: 19px; line-height: 1.35; }
+  .riasec-human-card__tag { font-size: 14px; margin-left: 4px; display: inline-block; }
+  .riasec-human-card__tagline { font-size: 14.5px; line-height: 1.5; }
+  .riasec-human-card__grid { grid-template-columns: 1fr; gap: 12px; margin-top: 15px; }
+  .riasec-human-card__item { padding: 14px 16px; }
+  .riasec-human-card__item h4 { font-size: 15px; }
+  .riasec-human-card__item p { font-size: 15.5px; line-height: 1.8; color: #202b3c; }
+  .riasec-composite-box { padding: 16px 15px; margin-top: 16px; }
+  .riasec-composite-header h4 { font-size: 17px; line-height: 1.35; }
+  .riasec-composite-chem { font-size: 15.5px; line-height: 1.8; color: #202b3c; }
+  .riasec-composite-desc { font-size: 14.5px; line-height: 1.75; color: #4a576a; }
   .scale-options { grid-template-columns: repeat(2, 1fr); margin-top: 31px; }
   .scale-options button { min-height: 92px; }
   .score-list div { grid-template-columns: 92px 1fr; }
@@ -661,10 +724,10 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .mirror-section__header p { margin-top: 4px; font-size: 16px; line-height: 1.6; }
   .mirror-section__body { padding-top: 15px; }
   .mirror-core h3 { font-size: 23px; }
-  .mirror-reading { font-size: 16px; }
+  .mirror-reading { font-size: 16px; line-height: 1.8; color: #202b3c; }
   .activity-preference-list small, .mirror-extension__list p { font-size: 14px; }
   .life-daily-reading, .life-path-daily-reading { margin-top: 18px; padding: 14px 15px 15px; }
-  .life-daily-reading p, .life-path-daily-reading p { font-size: 16px; line-height: 1.7; }
+  .life-daily-reading p, .life-path-daily-reading p { font-size: 16px; line-height: 1.8; color: #202b3c; }
   .life-path-resonance-note { padding: 13px 14px; }
   .riasec-top-three { margin-top: 18px; padding: 15px 15px 3px; }
   .riasec-top-three__heading { gap: 10px; }

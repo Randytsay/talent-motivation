@@ -70,6 +70,10 @@ async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
 
   await page.getByRole('button', { name: '整理我的三面鏡子' }).click();
   await page.getByRole('heading', { name: '你的探索結果' }).waitFor();
+  const officialLineLink = page.getByRole('link', { name: '加入官方 LINE' });
+  await officialLineLink.waitFor();
+  assert.equal(await officialLineLink.getAttribute('href'), 'https://line.me/R/ti/p/@337gxtnq');
+  await page.getByRole('img', { name: '掃描 QR Code 加入天賦原動力官方 LINE' }).waitFor();
 }
 
 async function main() {

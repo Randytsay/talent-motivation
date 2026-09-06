@@ -33,6 +33,7 @@ import type {
 import type { AIReport, AssessmentInput } from './server/contracts';
 
 const DISCLAIMER = '生命靈數是一種自我反思工具，結果不代表命定的人格或人生。';
+const OFFICIAL_LINE_URL = 'https://line.me/R/ti/p/@337gxtnq';
 const SCALE: Array<{ value: RiasecAnswer; label: string }> = [
   { value: 1, label: '完全不像我' },
   { value: 2, label: '不太像我' },
@@ -432,6 +433,24 @@ function DetailedResultSections({
           </div>
         ) : <p className="mirror-reflection">最近哪一件事讓你覺得有發揮？哪一件事比較卡住？</p>}
       </MirrorSection>
+    </section>
+  );
+}
+
+function OfficialLineInvite() {
+  return (
+    <section className="official-line-invite" aria-labelledby="official-line-invite-title">
+      <div className="official-line-invite__copy">
+        <small>想把這次的探索帶回生活裡？</small>
+        <h2 id="official-line-invite-title">加入官方 LINE，從同一個入口繼續探索</h2>
+        <p>手機可以直接點擊按鈕；使用電腦時，也可以用手機掃描右側 QR Code。</p>
+        <a className="primary-button official-line-invite__link" href={OFFICIAL_LINE_URL}>加入官方 LINE</a>
+        <a className="official-line-invite__url" href={OFFICIAL_LINE_URL}>{OFFICIAL_LINE_URL}</a>
+      </div>
+      <div className="official-line-invite__qr">
+        <img src="/line-official-qr.png" alt="掃描 QR Code 加入天賦原動力官方 LINE" width="444" height="444" />
+        <small>掃描加入官方 LINE</small>
+      </div>
     </section>
   );
 }
@@ -1128,6 +1147,7 @@ function AssessmentApp() {
               explorationInterest={draft.explorationInterest}
               reflections={draft.reflections}
             />
+            <OfficialLineInvite />
             {persistenceError ? (
               <div className="reflection-card" style={{ borderLeftColor: '#a95143', marginTop: 20 }}>
                 <small style={{ color: '#a95143' }}>保存提示</small>
@@ -1208,6 +1228,7 @@ function ServerReport({
             explorationInterest={assessment.explorationInterest}
             reflections={assessment.reflections}
           />
+          <OfficialLineInvite />
           {!report ? <button className="primary-button" type="button" disabled={isGenerating} onClick={onRetry}>
             {isGenerating ? '正在產生 AI 解析…' : '重新產生 AI 解析'}
           </button> : null}

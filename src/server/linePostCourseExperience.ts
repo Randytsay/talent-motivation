@@ -56,6 +56,10 @@ const TRACK_GUIDE: Record<ExplorationTrack, { title: string; short: string; purp
   },
 };
 
+const SUMMARY_ACTIONS = new Set(['summary', 'result', 'view_result']);
+const RESULT_TEXT_PATTERN = /^查看\s+(\d{4}\/\d{2}\/\d{2})\s*的結果$/;
+const POSTBACK_RETRY_MESSAGE = '這個選項沒有成功送出。請再輸入「我的原動力」，我會重新整理你的結果。';
+
 function parseEvents(rawBody: string): LineWebhookEvent[] {
   try {
     const parsed: unknown = JSON.parse(rawBody);
@@ -417,6 +421,35 @@ async function handleStart(
   await replyLine(replyToken, [summaryFlex(available[0].assessment)], config, fetchImpl);
 }
 
+async function handleResultText(
+  event: LineWebhookEvent,
+  date: string,
+  services: RuntimeServices,
+  config: LineMessagingConfig,
+  fetchImpl: LineFetch,
+): Promise<void> {
+  const replyToken = event.replyToken;
+  const lineUserId = event.source?.userId;
+  if (!replyToken || !lineUserId) return;
+
+  const participant = await services.repositories.participants.findByLineUserId(lineUserId);
+  if (!participant) {
+    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl);
+    return;
+  }
+
+  const matching = (await promptableAssessments(participant, services))
+    .filter((item) => formatAssessmentDate(item.assessment.completedAt) === date);
+  if (matching.length === 1) {
+    await replyLine(replyToken, [summaryFlex(matching[0].assessment)], config, fetchImpl);
+    return;
+  }
+
+  await replyLine(replyToken, matching.length > 1
+    ? [selectorFlex(matching)]
+    : textMessages('找不到這個日期的結果，可能已經更新。請重新輸入「我的原動力」再選一次。'), config, fetchImpl);
+}
+
 async function handlePostback(
   event: LineWebhookEvent,
   services: RuntimeServices,
@@ -426,7 +459,12 @@ async function handlePostback(
   const replyToken = event.replyToken;
   const lineUserId = event.source?.userId;
   const data = event.postback?.data;
-  if (!replyToken || !lineUserId || !data) return;
+  if (!replyToken || !lineUserId || !data) {
+    console.warn('LINE postback missing required fields', {
+      hasReplyToken: Boolean(replyToken), hasLineUserId: Boolean(lineUserId), hasData: Boolean(data),
+    });
+    return;
+  }
 
   const params = new URLSearchParams(data);
   const action = params.get('action');
@@ -442,23 +480,32 @@ async function handlePostback(
   }
 
   const assessmentId = params.get('assessmentId');
-  if (!assessmentId) return;
+  if (!assessmentId) {
+    await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
+    return;
+  }
   const assessment = await ownedAssessment(participant, assessmentId, services);
   if (!assessment) {
     await replyLine(replyToken, textMessages('這份結果目前不屬於你的帳號，或已無法存取。請重新輸入「我的原動力」。'), config, fetchImpl);
     return;
   }
 
-  if (action === 'summary') {
+  if (SUMMARY_ACTIONS.has(action ?? '')) {
     await replyLine(replyToken, [summaryFlex(assessment)], config, fetchImpl);
     return;
   }
 
   if (action === 'prompt') {
     const track = params.get('track');
-    if (track !== 'self' && track !== 'career' && track !== 'action') return;
+    if (track !== 'self' && track !== 'career' && track !== 'action') {
+      await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
+      return;
+    }
     await replyLine(replyToken, await promptMessages(assessment, track, services), config, fetchImpl);
+    return;
   }
+
+  await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
 }
 
 export function createLinePostCourseExperienceWebhookHandler(
@@ -476,17 +523,40 @@ export function createLinePostCourseExperienceWebhookHandler(
 
     const events = parseEvents(rawBody);
     for (const event of events) {
-      if (event.type === 'follow' && event.replyToken) {
-        await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl);
-      } else if (event.type === 'message' && event.message?.type === 'text') {
-        const text = event.message.text?.trim() ?? '';
-        if (TRIGGER_WORDS.has(text)) {
-          await handleStart(event, services, config, fetchImpl);
-        } else if (HELP_WORDS.has(text) && event.replyToken) {
+      console.info('LINE webhook event received', {
+        type: event.type,
+        hasReplyToken: Boolean(event.replyToken),
+        hasLineUserId: Boolean(event.source?.userId),
+        hasPostbackData: Boolean(event.postback?.data),
+      });
+      try {
+        if (event.type === 'follow' && event.replyToken) {
           await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl);
+        } else if (event.type === 'message' && event.message?.type === 'text') {
+          const text = event.message.text?.trim() ?? '';
+          if (TRIGGER_WORDS.has(text)) {
+            await handleStart(event, services, config, fetchImpl);
+          } else if (HELP_WORDS.has(text) && event.replyToken) {
+            await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl);
+          } else {
+            const resultMatch = text.match(RESULT_TEXT_PATTERN);
+            if (resultMatch) await handleResultText(event, resultMatch[1], services, config, fetchImpl);
+          }
+        } else if (event.type === 'postback') {
+          await handlePostback(event, services, config, fetchImpl);
         }
-      } else if (event.type === 'postback') {
-        await handlePostback(event, services, config, fetchImpl);
+      } catch (error) {
+        console.error('LINE event handling failed', {
+          type: event.type,
+          code: error instanceof HttpError ? error.code : 'unknown_error',
+        });
+        if (event.replyToken) {
+          try {
+            await replyLine(event.replyToken, textMessages('剛剛讀取結果時遇到短暫問題，請稍後再輸入「我的原動力」重試。'), config, fetchImpl);
+          } catch {
+            // The original error and reply failure are already logged without private data.
+          }
+        }
       }
     }
 

@@ -153,6 +153,88 @@ describe('LINE post-course experience UX', () => {
     expect(rendered).toContain('你想從哪一次開始？');
   });
 
+  it('replies with the selected result when a history button sends a summary postback', async () => {
+    const repositories = new InMemoryRepositories(() => '2026-09-05T12:00:00.000Z');
+    const participant = await repositories.participants.upsertIdentity({
+      lineUserId: 'U-test-user', displayName: '測試學員',
+    });
+    const subject: SubjectRecord = {
+      subjectId: 'subject-self',
+      ownerParticipantId: participant.participantId,
+      createdByParticipantId: participant.participantId,
+      subjectKind: 'self',
+      displayLabel: '我自己',
+      birthDate: '1978-11-05',
+      claimStatus: 'not_applicable',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-09-05T12:00:00.000Z',
+      archived: false,
+    };
+    await repositories.subjects.create(subject);
+    const assessment = assessmentFixture(participant.participantId, { subjectId: subject.subjectId });
+    await repositories.assessments.append(assessment);
+
+    const requests: unknown[] = [];
+    const handler = testHandler(repositories, requests);
+    const body = JSON.stringify({
+      events: [{
+        type: 'postback', replyToken: 'reply-token', source: { userId: 'U-test-user' },
+        postback: { data: `action=summary&assessmentId=${encodeURIComponent(assessment.assessmentId)}` },
+      }],
+    });
+
+    const response = await handler(signedRequest(body));
+    expect(response.status).toBe(200);
+    const rendered = JSON.stringify(requests[0]);
+    expect(rendered).toContain('測驗日期：2026/09/05');
+    expect(rendered).toContain('生命靈數：5｜探索者');
+    expect(rendered).toContain('接下來想怎麼使用這份結果？');
+  });
+
+  it('supports a result button that arrives as its display text', async () => {
+    const repositories = new InMemoryRepositories(() => '2026-09-05T12:00:00.000Z');
+    const participant = await repositories.participants.upsertIdentity({
+      lineUserId: 'U-test-user', displayName: '測試學員',
+    });
+    await repositories.assessments.append(assessmentFixture(participant.participantId, {
+      completedAt: '2026-09-05T12:00:00.000Z',
+    }));
+
+    const requests: unknown[] = [];
+    const handler = testHandler(repositories, requests);
+    const body = JSON.stringify({
+      events: [{
+        type: 'message', replyToken: 'reply-token', source: { userId: 'U-test-user' },
+        message: { type: 'text', text: '查看 2026/09/05 的結果' },
+      }],
+    });
+
+    const response = await handler(signedRequest(body));
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(requests[0])).toContain('測驗日期：2026/09/05');
+  });
+
+  it('does not leave an unsupported postback without a reply', async () => {
+    const repositories = new InMemoryRepositories(() => '2026-09-05T12:00:00.000Z');
+    const participant = await repositories.participants.upsertIdentity({
+      lineUserId: 'U-test-user', displayName: '測試學員',
+    });
+    await repositories.assessments.append(assessmentFixture(participant.participantId));
+
+    const requests: unknown[] = [];
+    const handler = testHandler(repositories, requests);
+    const body = JSON.stringify({
+      events: [{
+        type: 'postback', replyToken: 'reply-token', source: { userId: 'U-test-user' },
+        postback: { data: 'action=unknown' },
+      }],
+    });
+
+    const response = await handler(signedRequest(body));
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(requests[0])).toContain('這個選項沒有成功送出');
+  });
+
   it('includes the selected assessment date and a plain-language purpose before the AI prompt', async () => {
     const repositories = new InMemoryRepositories(() => '2026-09-05T12:00:00.000Z');
     const participant = await repositories.participants.upsertIdentity({

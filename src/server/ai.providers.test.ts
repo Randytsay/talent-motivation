@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
-import { VertexAIProvider, generateValidatedReport } from './ai';
+import { MockAIProvider, VertexAIProvider, generateValidatedReport } from './ai';
 import { ProductionMiniMaxAIProvider, ProductionVertexAIProvider } from './productionAI';
 import { saveAssessment } from './assessment';
 import type { Identity } from './contracts';
@@ -43,6 +43,13 @@ function liveBase() {
 }
 
 describe('selectable live AI providers', () => {
+  it('grounds the local fallback life-path copy in the participant-confirmed resonance', async () => {
+    const { assessment } = await saveAssessment(payload(), identity, new InMemoryRepositories());
+    const report = await new MockAIProvider().generate(assessment);
+    expect(report.birth_profile_summary).toContain('我需要有空間探索新的可能。');
+    expect(report.birth_profile_summary).toContain('貼近你的日常');
+  });
+
   it('loads Vertex AI configuration without requiring a Gemini API key', () => {
     const config = loadRuntimeConfig({
       ...liveBase(),
@@ -112,6 +119,8 @@ describe('selectable live AI providers', () => {
         expect(system).toContain(`"${key}"`);
       }
       expect(system).toContain('"additionalProperties":false');
+      expect(system).toContain('life_path_top_resonance');
+      expect(system).toContain('life_path_context');
       expect(parsedBody.thinking).toEqual({ type: 'disabled' });
       expect(parsedBody.reasoning_split).toBe(true);
       expect(parsedBody.max_completion_tokens).toBe(4096);

@@ -5,6 +5,7 @@ import { birthProfileFacts } from '../lib/scoring/birthProfile';
 import { birthSignatureFacts } from '../lib/scoring/birthSignature';
 import { extractRiasecItemSignals } from '../lib/scoring/riasecSignals';
 import { RIASEC_META } from '../data/riasecQuestions';
+import { LIFE_PATH_CONTENT } from '../data/lifePathContent';
 
 export interface AIProvider {
   generate(assessment: AssessmentRecord): Promise<AIReportContent>;
@@ -68,28 +69,30 @@ export function validateAIReport(value: unknown): AIReportContent {
 /** Deterministic local stand-in. It interprets validated facts but never calculates them. */
 export class MockAIProvider implements AIProvider {
   async generate(assessment: AssessmentRecord): Promise<AIReportContent> {
-    const top = assessment.riasecResult.top3Code;
     const topName = assessment.riasecResult.top3.map((code) => RIASEC_META[code].name.replace('型', '')).join('、');
     const subjectiveName = RIASEC_META[assessment.subjectiveDriver].name;
     const priorities = assessment.priorities.join('、') || '目前在意的生活方向';
+    const lifePathResonance = assessment.lifePathTopResonance.trim();
     return validateAIReport({
       repeated_signals: [
-        `偏好 ${top} 的活動，可能讓你比較容易投入`,
-        `你評估天賦使用感為 ${assessment.talentUsage}%`,
-        `你目前在意：${priorities}`,
+        '在需要釐清複雜脈絡或獨立推進時，能展現出敏銳而清晰的洞察力',
+        `面對天賦使用感約 ${assessment.talentUsage}% 的現況，內心清楚知道自己還有很多能量尚未充分舒展`,
+        `目前極度渴望在生活中找回「${priorities}」，擺脫被瑣碎事務消耗的狀態`,
       ],
       birth_profile_summary: assessment.birthProfile
-        ? `如果這個出生結構的 ${assessment.birthProfile.pyramid.main} 號反思角度符合你的經驗，你可以想想哪些選擇空間對你特別重要。`
-        : '出生日期只提供一個象徵角度；如果有共鳴，可以想想它和哪些生活經驗連得上。',
-      motivator_summary: `你的活動偏好較靠近${topName}，你選的能量線索是「${subjectiveName}」。如果這兩者都符合你的經驗，你可能在先理解問題、再用自己的方式回應時比較容易投入；這是偏好線索，不等於已驗證的能力。`,
-      possible_tensions: ['如果你同時在意保留選擇與完成眼前的事，這可能是自然的兩難；可以回想最近哪個條件讓兩邊比較能兼顧。'],
-      unused_potential: `你已經感覺到 ${assessment.talentUsage}% 的天賦使用感，也清楚目前在意「${priorities}」。可以觀察自主空間、討論品質或界線的哪一項，最影響你把想法帶進生活。`,
-      exploration_directions: [
-        '這週記下一次投入與一次耗損的時刻，留意當時的內容、選擇空間和互動方式。',
-        '從記下的差別挑一項小調整，下一次多保留一點提問或改做法的空間。',
+        ? `你選了「${lifePathResonance}」作為最有共鳴的線索。這深刻貼近你的日常節奏：骨子裡你對事物的自主性與真實價值有著天然的堅持，當環境能給予充分信任與摸索空間時，你的專注與爆發力會自然湧現；相反地，若被困在僵化流程或反覆等待中，便容易感到內在熱情被悄悄磨損。`
+        : '出生結構反映出你骨子裡獨特的處事節奏；當生活貼近你的日常核心堅持時，你會感覺特別自在踏實。',
+      motivator_summary: `最能讓你自然進入心流的高光時刻，通常發生在結合了「${topName}」特質的情境中，特別是能呼應內心「${subjectiveName}」驅動力的瞬間。當你能先弄明白背後的本質邏輯，再用自己的專業把想法落地成扎實的成果時，哪怕過程充滿挑戰，你也會感到無比充實且眼裡有光。`,
+      possible_tensions: [
+        '你內心深處最常拉扯的兩個聲音：一方面你想把事情做得周全扎實、對責任毫不敷衍；但另一方面，內心深處又極度渴望擁有不受打擾的個人自主節奏。當這兩者在現實中衝突時，往往容易演變成無聲的內耗。',
       ],
-      reflection_question: `如果想讓現在的 ${assessment.talentUsage}% 多一點滿意，你最希望增加哪一種時刻？`,
-      summary: `你把天賦使用感評為 ${assessment.talentUsage}%，也在意「${priorities}」。你可能已經有能發揮自己的時刻，只是還想看看哪些條件能讓它更常出現。`,
+      unused_potential: `你把目前的天賦使用感評為 ${assessment.talentUsage}%，並特別在乎「${priorities}」。這說明你並非能力不足，而是當前的環境與協作條件可能正卡住了你的施展——過多的溝通摩擦、缺乏掌控感的推進方式，讓你常常感到「有力使不上」。`,
+      exploration_directions: [
+        '這週為自己刻意保留一個 90 分鐘「不被打擾的專注微時段」，完全依照自己的步調去推進一件你在意的事。',
+        '在一次感到暗耗心累的時刻，記錄下究竟是哪條界線或哪種互動方式踩到了底線，作為後續為自己微調空間的依據。',
+      ],
+      reflection_question: `如果能為現在的生活鬆開一個束縛，你最希望換取哪種真正讓自己放鬆或全心投入的時刻？`,
+      summary: `你很清楚自己不是沒有能力，但現在的環境常常讓你感到「有力使不上」。你把天賦使用感評為 ${assessment.talentUsage}%，也在意「${priorities}」；這份報告想告訴你：你不需要變得更迎合外界標準，而是需要為自己爭取更能自在舒展的空間與條件。`,
     });
   }
 }
@@ -100,7 +103,7 @@ export interface RealAIProvider extends AIProvider {
   readonly providerName: string;
 }
 
-const REPORT_JSON_SCHEMA = {
+export const REPORT_JSON_SCHEMA = {
   type: 'object',
   properties: {
     repeated_signals: { type: 'array', items: { type: 'string' } },
@@ -117,26 +120,27 @@ const REPORT_JSON_SCHEMA = {
   propertyOrdering: [...REQUIRED_KEYS],
 } as const;
 
-const REPORT_SYSTEM_PROMPT = [
-  '你是「天賦原動力」的自我探索報告整理者。',
+export const REPORT_SYSTEM_PROMPT = [
+  '你是「天賦原動力」的深度自我探索教練與心靈畫像整理者。',
+  '你的核心任務：根據提供的已驗證客觀事實，寫出一份讓讀者讀完會「全身起雞皮疙瘩、深深覺得被懂、被同理、被看見」的專屬天賦講評。',
   '只能依據提供的 deterministic facts 解讀，不能重算或修改 Life Path、RIASEC scores、Top3。',
-  '只輸出固定八欄 JSON，不包含 markdown、生日、原始作答、推理過程或額外欄位。',
-  '使用繁體中文與第二人稱「你」，語氣溫暖、自然、具體，像仔細聽完回答後給出整理；不要寫成制式測驗報告。',
-  '不可使用「你就是、你天生就是、你的天命、你一定適合、這證明你、你應該辭職、命中注定」等定論，也不可預測財運、疾病或健康。請用「可能、可以觀察、如果符合你的經驗」留下確認或不同意的空間。',
-  '寫作順序固定：先呼應這次回答中的具體資料，再翻譯成一個日常情境，最後邀請讀者自行確認；不要先丟類型標籤或泛泛稱讚。',
-  '內容依據優先順序：1. priorities 與 talent_usage_pct；2. exploration_interest、reflections、subjective_energy；3. top3 與 riasec_item_signals；4. birth_profile 與 birth_signature 只作次要反思提示，不能主導結論。',
-  '至少在 summary 或 repeated_signals 中呼應一項使用者明確填答（若有 talent_usage_pct，請寫出百分比；若有 priorities，請具體提到至少一項）。資料不足時如實說明並邀請回想，不可編造工作、家庭、團隊、經歷或情緒。',
-  '把類型與向度翻譯成日常行為，例如「遇到問題時可能想先弄懂原因，再決定怎麼做」。RIASEC 與主觀能量代表偏好或投入線索，不等於能力、職業適性或已驗證的表現。',
-  '若 subjective_energy 與 top3 有相同向度，請在 motivator_summary 明確說出「你選的能量線索」與「對應的活動偏好」如何呼應；若兩者不同，請具體說明差異，不要只寫「兩個角度出現相同線索」。',
-  'summary 是摘要開場：1 至 2 句、約 40 至 70 字。先承認已存在的投入，再說明這些資料可以拿來觀察，不與完整解析重複堆疊。',
-  'repeated_signals 提供 3 個簡短個人線索，每項約 12 至 22 字；每項只放一個具體訊號與行為情境，不要用空格、頓號或分號串成長段落。',
-  'exploration_directions 提供 1 至 3 個方向；第一項是約 30 至 50 字、低負擔且可在近期嘗試的小行動，優先觀察讓人投入或耗損的條件。其他項目可補充一個環境調整或小型嘗試，不預設使用者有正職、團隊、跨部門資源或餘力做副業，也不要把每項都寫成更多工作。',
-  'motivator_summary 用 1 至 2 句、約 60 至 110 字，連結 top3、subjective_energy 或 reflections，說明什麼情境可能讓人投入，清楚區分偏好與能力。',
-  'unused_potential 用 1 至 2 句、約 60 至 110 字，先承認已存在的投入，再指出可能影響發揮的條件（例如自主空間、討論品質、界線或互動）；不要寫成能力不足，也不要要求更努力。',
-  'possible_tensions 提供 1 至 2 個、每項約 45 至 80 字的條件式觀察。若資料中有兩組不同線索，寫「如果你也同時在乎 A 與 B，這可能是自然的兩難」，邀請核對生活；不要從出生數字推導責任、孤獨、人生階段或心理狀態。',
-  'birth_profile_summary 用 1 至 2 句、約 40 至 80 字，明確寫成「如果這個反思角度符合你的經驗，你可以想想……」。出生日期只提供象徵語言，不代表命定的人格、近期狀態或人生方向。',
-  'reflection_question 只提出一個約 30 至 60 字、沒有標準答案的問題，優先回扣 talent_usage_pct、priorities 或一個可回想的近期情境。',
-  '可以在真正值得先讀的短語外加【重點】與【/重點】標記，每個文字欄位最多一次；不要使用 Markdown 粗體。',
+  '只輸出固定八欄 JSON，不包含 markdown 外框、生日、原始作答、推理過程或額外欄位。',
+  '【語言與同理風格要求】',
+  '- 使用繁體中文與第二人稱「你」，語氣像一位默默懂你很久的敏銳導師或溫暖摯友，深刻、真誠、富有心理洞察力。',
+  '- 堅決告別冷冰冰的制式測驗口吻、HR 報告腔調或外交官式的防禦性套話。',
+  '- 不要在每句話裡塞「這不等於能力、留待你確認、純屬偏好」等破壞閱讀體驗的免責緩衝詞（免責宣告由前端系統統一展示，你的正文必須專注於深刻的心理描繪與情境同理）。',
+  '- 善用「日常微場景（Micro-moments）」與「內心獨白」：把抽象向度翻譯成有畫面、有痛感或有光芒的具體生活/工作細節（例如：面對模糊指示時、開著冗長無效的會議時、獨自把複雜混亂理出頭緒時）。',
+  '- 嚴格遵守倫理底線：不可使用「命中注定、你的天命、算命吉凶、財富命定、疾病預測」等迷信定論，不可指導使用者離職或參與特定商業投資。',
+  '【八欄內容撰寫指引】',
+  '1. summary（💡 為你整理的一句心底話 / 情境畫像）：約 90 至 150 字。先描摹出一個立體、鮮活的心理畫像，直接說出讀者藏在心底說不出口的委屈、矛盾與真實渴望。先同理讀者目前「有力使不上」或「很想做好但被環境條件牽制」的心聲，並自然回扣 talent_usage_pct（百分比）與 priorities（至少一項）。讓讀者第一眼就覺得「天啊，你真的懂我」。',
+  '2. repeated_signals（🔍 這次回答中反覆浮現的特質線索）：精準提供 3 個鮮活特質線索，每項約 20 至 35 字。每項結合具體的日常行為或場景，點出讀者讓人點頭稱是的鮮明特質（例如在混亂中總想先找出規律、比起空泛讚美更重視掌控感等）。',
+  '3. birth_profile_summary（🌱 你習慣看待世界的方式 · 深層底色）：約 100 至 160 字。深入解讀讀者骨子裡的心理底色與思維節奏。優先引用 life_path_top_resonance，並結合 life_path_context 中的動力與特質素材，生動描述讀者骨子裡對事物的看法、內在節奏與深層堅持，以及在什麼環境條件下最能展現這種力量，在什麼壓迫下會想抽離。',
+  '4. motivator_summary（⚡ 最能讓你自然進入心流的事情 · 高光時刻）：約 120 至 180 字。生動刻畫「你的高光時刻」——在什麼樣的具體場景、任務型態、協作氛圍下，讀者整個人會眼睛發亮、專注沉浸、哪怕再累也充滿成就感。將 top3 與 subjective_energy 的特質轉化為一個鮮活生動的做事畫面，讓讀者讀了恨不得立刻去做。',
+  '5. unused_potential（🪞 你現在心裡最真實的卡點 · 暗耗時刻）：約 120 至 180 字。精準描寫「你的暗耗時刻」——回扣 talent_usage_pct 與 priorities，深入同理讀者在現實環境中「有力使不上」的真正癥結（例如：多頭馬車的指令、缺乏自主主導空間、無意義的人際消耗）。肯定讀者的能力已經存在，只是環境條件卡住了施展。',
+  '6. possible_tensions（⚖️ 你內心深處最常拉扯的兩個聲音）：提供 1 至 2 個、每項約 70 至 120 字的深刻張力觀察。生動寫出讀者內心最常打架的兩個聲音（例如：「一方面追求極致與完美、不想辜負期待，另一方面又極度渴望能擁有完全屬於自己的節奏與界線」），一針見血戳中內心深處的矛盾拉扯。',
+  '7. exploration_directions（🧭 可以嘗試的微小方向）：提供 1 至 3 個方向；第一項是約 40 至 70 字、極低心理負擔、本週就能嘗試的「微實驗」（例如為自己留出一段不被打擾的專注時間、或在某個情境下劃下一個微小界線）。其他項目可提供環境或心態上的小嘗試。',
+  '8. reflection_question（💭 今天留給自己的一句提問）：一句約 35 至 65 字、直擊靈魂又溫柔的開放提問，引導讀者回扣 talent_usage_pct 或當前生活，放下焦慮，看清自己真正渴望的生活模樣。',
+  '可以在真正值得觸動心靈或關鍵洞察的短語外加【重點】與【/重點】標記，每個文字欄位最多一次；不要使用 Markdown 粗體。',
   `輸出必須符合這份 JSON Schema：${JSON.stringify(REPORT_JSON_SCHEMA)}`,
 ].join('\n');
 
@@ -147,6 +151,12 @@ function aiFacts(assessment: AssessmentRecord): string {
     birth_profile: assessment.birthProfile ? birthProfileFacts(assessment.birthProfile) : undefined,
     birth_signature: assessment.birthSignature ? birthSignatureFacts(assessment.birthSignature) : undefined,
     life_path: assessment.lifePath.value,
+    life_path_context: {
+      label: LIFE_PATH_CONTENT[assessment.lifePath.value].label,
+      core_motivation: LIFE_PATH_CONTENT[assessment.lifePath.value].coreMotivation,
+      strengths: LIFE_PATH_CONTENT[assessment.lifePath.value].strengths,
+      drains: LIFE_PATH_CONTENT[assessment.lifePath.value].drains,
+    },
     life_path_resonance: assessment.lifePathResonance,
     life_path_top_resonance: assessment.lifePathTopResonance,
     riasec_scores: assessment.riasecResult.scores,
@@ -413,7 +423,7 @@ export async function generateValidatedReport(
     ...valid,
     reportId: randomUUID(),
     assessmentId: assessment.assessmentId,
-    promptVersion: 'p5-summary-first-reflective-v1',
+    promptVersion: 'p5-summary-first-reflective-v2-life-path-resonance',
     modelName: provider instanceof MockAIProvider ? 'mock-ai-provider' : (provider as RealAIProvider).providerName,
     generatedAt: now(),
   };

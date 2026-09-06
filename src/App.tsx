@@ -191,21 +191,48 @@ const RIASEC_ACTIVITY_DESCRIPTIONS: Record<RiasecCode, string> = {
   C: '整理資訊、安排步驟、建立流程',
 };
 
-function RiasecPreferenceReading({ riasecResult }: { riasecResult: RiasecResult }) {
+function RiasecTopThree({ riasecResult, showScores = true }: { riasecResult: RiasecResult; showScores?: boolean }) {
   const names = riasecResult.top3.map((code) => RIASEC_META[code].name.replace('型', '')).join('、');
+  return (
+    <div className="riasec-top-three" aria-label={`前三個活動偏好：${names}`}>
+      <div className="riasec-top-three__heading">
+        <div>
+          <small>先看前三個方向</small>
+          <strong>{names}</strong>
+        </div>
+        <span aria-label={`RIASEC Top 3：${riasecResult.top3Code}`}>{riasecResult.top3Code}</span>
+      </div>
+      <ol className="riasec-top-three__list">
+        {riasecResult.top3.map((code, index) => {
+          const score = riasecResult.scores[code];
+          return (
+            <li key={code}>
+              <span className="riasec-top-three__rank">{String(index + 1).padStart(2, '0')}</span>
+              <span className="riasec-top-three__code" style={{ color: RIASEC_META[code].color }}>{code}</span>
+              <span className="riasec-top-three__copy">
+                <strong>{RIASEC_META[code].name}</strong>
+                <small>{RIASEC_ACTIVITY_DESCRIPTIONS[code]}</small>
+              </span>
+              {showScores ? <b className="riasec-top-three__score">{score.normalized}</b> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function lifePathDailyReading(content: typeof LIFE_PATH_CONTENT[keyof typeof LIFE_PATH_CONTENT]): string {
+  return `「${content.label}」這個角度關注的是${content.coreMotivation}。如果這和你的經驗有連結，你可能在${content.strengths[0]}時比較容易投入；遇到${content.drains[0]}，則可能需要多一點調整空間。`;
+}
+
+function RiasecPreferenceReading({ riasecResult }: { riasecResult: RiasecResult }) {
   const first = RIASEC_ACTIVITY_DESCRIPTIONS[riasecResult.top3[0]].split('、')[0];
   const second = RIASEC_ACTIVITY_DESCRIPTIONS[riasecResult.top3[1]].split('、')[0];
   return (
     <>
-      <p className="mirror-reading">你的回答較偏向{names}相關的活動。可以留意：當你能從「{first}」開始，再接著「{second}」時，你是否比較容易投入？</p>
-      <ul className="activity-preference-list">
-        {riasecResult.top3.map((code) => (
-          <li key={code}>
-            <span className="activity-preference-code" style={{ color: RIASEC_META[code].color }}>{code}</span>
-            <span><strong>{RIASEC_META[code].name}</strong><small>{RIASEC_ACTIVITY_DESCRIPTIONS[code]}</small></span>
-          </li>
-        ))}
-      </ul>
+      <p className="mirror-reading">你的回答較偏向{riasecResult.top3.map((code) => RIASEC_META[code].name.replace('型', '')).join('、')}相關的活動。可以留意：當你能從「{first}」開始，再接著「{second}」時，你是否比較容易投入？</p>
+      <RiasecTopThree riasecResult={riasecResult} />
       <p className="mirror-reflection">對照一下：最近哪一件事讓你有機會用到這些偏好？</p>
     </>
   );
@@ -237,12 +264,14 @@ function MirrorSection({ id, number, title, description, accent, children }: {
 function MirrorQuickSummary({
   lifePathValue,
   lifePathLabel,
+  lifePathTopResonance,
   riasecResult,
   talentUsage,
   priorities,
 }: {
   lifePathValue: number;
   lifePathLabel: string;
+  lifePathTopResonance?: string;
   riasecResult: RiasecResult;
   talentUsage: number | string;
   priorities: string[];
@@ -253,7 +282,7 @@ function MirrorQuickSummary({
       <div className="mirror-quick-summary__grid">
         <a href="#mirror-1" className="mirror-quick-card mirror-quick-card--birth">
           <span className="mirror-quick-card__number">01</span>
-          <span className="mirror-quick-card__content"><strong>出生日期反思</strong><small>{lifePathValue} · {lifePathLabel}</small></span>
+          <span className="mirror-quick-card__content"><strong>出生日期反思</strong><small>{lifePathTopResonance ? `你選的線索：${lifePathTopResonance}` : `${lifePathValue} · ${lifePathLabel}`}</small></span>
           <span className="mirror-quick-card__arrow" aria-hidden="true">↓</span>
         </a>
         <a href="#mirror-2" className="mirror-quick-card mirror-quick-card--activity">
@@ -276,6 +305,7 @@ function DetailedResultSections({
   lifePathLabel,
   lifePathCoreMotivation,
   lifePathReflectionQuestion,
+  lifePathTopResonance,
   riasecResult,
   birthProfile,
   subjectiveDriver,
@@ -288,6 +318,7 @@ function DetailedResultSections({
   lifePathLabel: string;
   lifePathCoreMotivation: string;
   lifePathReflectionQuestion: string;
+  lifePathTopResonance?: string;
   riasecResult: RiasecResult;
   birthProfile?: BirthProfileResult;
   subjectiveDriver?: RiasecCode;
@@ -305,6 +336,14 @@ function DetailedResultSections({
           <div className="mirror-core mirror-core--birth"><p>目前沒有出生日期資料，這一面先略過。</p></div>
         )}
         <p className="mirror-result-meta">生命靈數 {lifePathValue} · {lifePathLabel}｜{lifePathCoreMotivation}</p>
+        <p className="life-path-daily-reading">{lifePathDailyReading(LIFE_PATH_CONTENT[lifePathValue as keyof typeof LIFE_PATH_CONTENT])}</p>
+        {lifePathTopResonance ? (
+          <div className="life-path-resonance-note">
+            <small>你選的共鳴線索</small>
+            <p>「{lifePathTopResonance}」</p>
+            <span>這是你對這個反思角度的回應，留意它在生活中何時最接近你。</span>
+          </div>
+        ) : null}
         <p className="mirror-reflection">{lifePathReflectionQuestion}</p>
         <p className="mirror-caveat">僅供自我反思，不代表命定的人格或人生。</p>
         {birthProfile ? <BirthProfileExtension birthProfile={birthProfile} /> : null}
@@ -344,17 +383,17 @@ function AIReportSummary({ report, expanded, onToggle }: { report: AIReport; exp
     <section className="ai-report" aria-labelledby="ai-report-title">
       <header className="ai-report__header">
         <div>
-          <small>AI 綜合解析</small>
-          <h2 id="ai-report-title">把三面鏡子放在一起整理</h2>
+          <small>專屬深度解讀</small>
+          <h2 id="ai-report-title">為你整理的心靈與天賦畫像</h2>
         </div>
-        <span className="ai-report__note">自我反思參考</span>
+        <span className="ai-report__note">懂你的真實樣貌</span>
       </header>
       <div className="ai-report__summary-copy">
-        <h3>一句核心理解</h3>
+        <h3>💡 一句核心理解｜為你整理的心底話</h3>
         <p><AIHighlightedText text={report.summary} /></p>
       </div>
       <div className="ai-report__summary-copy ai-report__summary-copy--action">
-        <h3>一個可以嘗試的小行動</h3>
+        <h3>🌱 一個可以嘗試的小行動｜本週微實驗</h3>
         <p><AIHighlightedText text={firstDirection} /></p>
       </div>
       <button className="analysis-toggle" type="button" aria-expanded={expanded} aria-controls="full-ai-analysis" onClick={onToggle}>
@@ -363,35 +402,35 @@ function AIReportSummary({ report, expanded, onToggle }: { report: AIReport; exp
       {expanded ? (
         <div id="full-ai-analysis" className="ai-report__full">
           <div className="ai-report__detail">
-            <h3>這次回答反覆出現的線索</h3>
+            <h3>🔍 這次回答反覆出現的線索 · 特質畫像</h3>
             <ul>{report.repeated_signals.slice(0, 3).map((signal, index) => <li key={`signal-${index}`}><AIHighlightedText text={signal} /></li>)}</ul>
           </div>
           <div className="ai-report__detail">
-            <h3>第一面鏡子｜出生日期反思</h3>
+            <h3>🌱 第一面鏡子｜出生日期反思 · 深層底色（你習慣看待世界的方式）</h3>
             <p><AIHighlightedText text={report.birth_profile_summary} /></p>
           </div>
           <div className="ai-report__detail">
-            <h3>第二面鏡子｜活動偏好</h3>
+            <h3>⚡ 第二面鏡子｜活動偏好 · 高光時刻（最能讓你自然進入心流的事）</h3>
             <p><AIHighlightedText text={report.motivator_summary} /></p>
           </div>
           <div className="ai-report__detail">
-            <h3>第三面鏡子｜當下感受</h3>
+            <h3>🪞 第三面鏡子｜當下感受 · 暗耗時刻（你現在心裡最真實的卡點）</h3>
             <p><AIHighlightedText text={report.unused_potential} /></p>
           </div>
           {report.possible_tensions?.length ? (
             <div className="ai-report__detail">
-              <h3>三個面向之間可以留意的地方</h3>
+              <h3>⚖️ 三個面向之間可以留意的地方 · 內心拉扯（最常打架的兩個聲音）</h3>
               <ul>{report.possible_tensions.map((item, index) => <li key={`tension-${index}`}><AIHighlightedText text={item} /></li>)}</ul>
             </div>
           ) : null}
           {report.exploration_directions.slice(1).length ? (
             <div className="ai-report__detail">
-              <h3>其他小方向</h3>
+              <h3>🧭 其他小方向 · 可以嘗試的生活微調</h3>
               <ul>{report.exploration_directions.slice(1).map((item, index) => <li key={`direction-${index}`}><AIHighlightedText text={item} /></li>)}</ul>
             </div>
           ) : null}
           <div className="ai-report__detail">
-            <h3>給自己的下一個問題</h3>
+            <h3>💭 給自己的下一個問題 · 留給今天的心靈提問</h3>
             <p><AIHighlightedText text={report.reflection_question} /></p>
           </div>
         </div>
@@ -738,10 +777,14 @@ function AssessmentApp() {
               <small>{lifePathContent.label}</small>
             </div>
             <p className="life-motivation">這個框架通常把 {draft.lifePath.value} 解讀為：<strong>{lifePathContent.coreMotivation}</strong></p>
+            <div className="life-daily-reading">
+              <small>這個主題可能出現在日常的地方</small>
+              <p>{lifePathDailyReading(lifePathContent)}</p>
+            </div>
             <div className="tag-list">{lifePathContent.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div>
             <div className="two-column-notes">
-              <div><small>容易發光</small><p>{lifePathContent.strengths[0]}</p></div>
-              <div><small>容易耗能</small><p>{lifePathContent.drains[0]}</p></div>
+              <div><small>可能讓你有投入感</small><p>{lifePathContent.strengths[0]}</p></div>
+              <div><small>可能讓你覺得卡住</small><p>{lifePathContent.drains[0]}</p></div>
             </div>
             {draft.birthProfile ? <><BirthProfileCore birthProfile={draft.birthProfile} /><BirthProfileExtension birthProfile={draft.birthProfile} /></> : null}
             <div className="action-row">
@@ -853,6 +896,8 @@ function AssessmentApp() {
           <section className="panel panel--wide results-panel entrance">
             <p className="eyebrow">你的活動偏好快照</p>
             <h1>你最常選擇投入的三種方式</h1>
+            <p className="lede">先看前三個方向，再回到分數看看完整輪廓。這些是活動偏好線索，不是能力評等。</p>
+            <RiasecTopThree riasecResult={riasecResult} />
             <div className="results-layout">
               <RadarChart scores={riasecResult.scores} />
               <RiasecScoreSummary riasecResult={riasecResult} />
@@ -966,6 +1011,7 @@ function AssessmentApp() {
             <MirrorQuickSummary
               lifePathValue={lifePathContent.value}
               lifePathLabel={lifePathContent.label}
+              lifePathTopResonance={draft.lifePathTopResonance}
               riasecResult={riasecResult}
               talentUsage={draft.talentUsage ?? '—'}
               priorities={draft.priorities}
@@ -975,6 +1021,7 @@ function AssessmentApp() {
               lifePathLabel={lifePathContent.label}
               lifePathCoreMotivation={lifePathContent.coreMotivation}
               lifePathReflectionQuestion={lifePathContent.reflectionQuestion}
+              lifePathTopResonance={draft.lifePathTopResonance}
               riasecResult={riasecResult}
               birthProfile={draft.birthProfile}
               subjectiveDriver={draft.subjectiveDriver}
@@ -1038,6 +1085,7 @@ function ServerReport({
           <MirrorQuickSummary
             lifePathValue={assessment.lifePath.value}
             lifePathLabel={lifePathContent.label}
+            lifePathTopResonance={assessment.lifePathTopResonance}
             riasecResult={assessment.riasecResult}
             talentUsage={assessment.talentUsage}
             priorities={assessment.priorities}
@@ -1052,6 +1100,7 @@ function ServerReport({
             lifePathLabel={lifePathContent.label}
             lifePathCoreMotivation={lifePathContent.coreMotivation}
             lifePathReflectionQuestion={lifePathContent.reflectionQuestion}
+            lifePathTopResonance={assessment.lifePathTopResonance}
             riasecResult={assessment.riasecResult}
             birthProfile={assessment.birthProfile}
             subjectiveDriver={assessment.subjectiveDriver}

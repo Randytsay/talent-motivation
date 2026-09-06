@@ -41,6 +41,8 @@ async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
   await page.locator('#birth-date').fill('1978-11-05');
   await page.getByRole('button', { name: '看看這面鏡子' }).click();
   await page.getByLabel('生命靈數 5').waitFor();
+  assert.equal(await page.locator('.life-daily-reading').count(), 1, 'Life Path reveal must translate the theme into a daily-life reflection');
+  await page.screenshot({ path: '/tmp/talent-motivation-life-path-1440.png', fullPage: true });
   await page.getByRole('button', { name: '這段有沒有打中你？' }).click();
   await page.getByRole('button', { name: '很像' }).click();
   await page.locator('.resonance-detail button').first().click();
@@ -52,6 +54,9 @@ async function completeAssessmentFlow(page: Page, presenterConsent: boolean) {
   await page.getByRole('button', { name: '把問題想明白' }).click();
   await page.getByRole('button', { name: '看看活動偏好結果' }).click();
   await page.getByText('RIA').first().waitFor();
+  assert.deepEqual(await page.locator('.riasec-top-three__code').allTextContents(), ['R', 'I', 'A'], 'RIASEC Top 3 must be shown as three independent directions');
+  assert.equal(await page.locator('.riasec-top-three__list li').count(), 3, 'RIASEC Top 3 must contain three separate rows');
+  await page.screenshot({ path: '/tmp/talent-motivation-riasec-result-1440.png', fullPage: true });
   await page.getByRole('button', { name: '看看第三面鏡子' }).click();
   await page.getByRole('button', { name: '60%' }).click();
   await page.getByRole('button', { name: '繼續' }).click();
@@ -140,6 +145,7 @@ async function main() {
     await desktop.getByText('一句核心理解').waitFor();
     await desktop.waitForTimeout(600);
     await desktop.getByRole('heading', { name: '三面鏡子快速摘要' }).waitFor();
+    await desktop.locator('.life-path-resonance-note').waitFor();
     await desktop.getByRole('link', { name: /出生日期反思/ }).click();
     await desktop.getByRole('heading', { name: '第一面鏡子｜出生日期反思' }).waitFor();
     await desktop.screenshot({ path: '/tmp/talent-motivation-result-1440.png', fullPage: true });

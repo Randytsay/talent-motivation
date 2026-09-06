@@ -158,6 +158,15 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .number-orbit small { margin-top: 9px; color: var(--clay); font-size: 14px; font-weight: 700; letter-spacing: .13em; }
 .life-motivation { margin: 0 auto; color: #5e6774; font-size: 17px; line-height: 1.85; }
 .life-motivation strong { color: var(--ink); }
+.life-daily-reading, .life-path-daily-reading { margin: 23px auto 0; padding: 17px 20px 18px; border: 1px solid var(--gold-soft); border-left: 3px solid var(--gold); border-radius: 14px; color: #43505f; background: rgba(255, 250, 241, .72); text-align: left; }
+.life-daily-reading { max-width: 650px; }
+.life-daily-reading small, .life-path-daily-reading small { color: var(--gold-deep); font-size: 13px; font-weight: 700; letter-spacing: .05em; }
+.life-daily-reading p, .life-path-daily-reading p { margin: 8px 0 0; font-size: 16px; line-height: 1.75; }
+.life-path-daily-reading { margin-top: 18px; }
+.life-path-resonance-note { margin-top: 18px; padding: 14px 16px; border: 1px solid rgba(180, 108, 85, .35); border-radius: 12px; background: rgba(241, 223, 214, .42); }
+.life-path-resonance-note small { color: var(--clay); font-size: 13px; font-weight: 700; }
+.life-path-resonance-note p { margin: 6px 0 0; color: var(--ink-strong); font-size: 17px; font-weight: 600; line-height: 1.6; }
+.life-path-resonance-note span { display: block; margin-top: 5px; color: #66707d; font-size: 14px; line-height: 1.65; }
 .tag-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 20px 0 30px; }
 .tag-list span { padding: 6px 11px; border: 1px solid var(--gold-soft); border-radius: 999px; color: #786443; background: #fbf7ef; font-size: 12px; }
 .two-column-notes { display: grid; grid-template-columns: 1fr 1fr; max-width: 650px; margin: auto; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: var(--paper-strong); }
@@ -460,6 +469,20 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
 .activity-preference-code { font-family: 'Noto Serif TC', serif; font-size: 24px; font-weight: 700; line-height: 1.2; }
 .activity-preference-list strong { display: block; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.45; }
 .activity-preference-list small { display: block; margin-top: 3px; color: #53606b; font-size: 15px; line-height: 1.6; }
+.riasec-top-three { margin-top: 20px; padding: 18px 20px 4px; border: 1px solid rgba(77, 112, 135, .26); border-radius: 16px; background: rgba(244, 248, 251, .72); }
+.riasec-top-three__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(77, 112, 135, .18); }
+.riasec-top-three__heading small { display: block; color: #5d7482; font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+.riasec-top-three__heading strong { display: block; margin-top: 5px; color: var(--ink-strong); font-size: 19px; font-weight: 600; line-height: 1.45; }
+.riasec-top-three__heading > span { flex: 0 0 auto; color: #4d7087; font-family: 'Noto Serif TC', serif; font-size: 22px; font-weight: 700; letter-spacing: .09em; }
+.riasec-top-three__list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: top-three; }
+.riasec-top-three__list li { display: grid; grid-template-columns: 28px 27px minmax(0, 1fr) 38px; gap: 10px; align-items: center; min-height: 65px; border-bottom: 1px solid rgba(77, 112, 135, .16); }
+.riasec-top-three__list li:last-child { border-bottom: 0; }
+.riasec-top-three__rank { color: #7b818b; font-size: 12px; font-variant-numeric: tabular-nums; }
+.riasec-top-three__code { font-family: 'Noto Serif TC', serif; font-size: 24px; font-weight: 700; line-height: 1; }
+.riasec-top-three__copy { display: grid; gap: 2px; min-width: 0; }
+.riasec-top-three__copy strong { color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.4; }
+.riasec-top-three__copy small { overflow-wrap: anywhere; color: #53606b; font-size: 14px; line-height: 1.5; }
+.riasec-top-three__score { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
 .score-summary { margin-top: 20px; }
 .score-scale { margin: 0 0 8px; color: #7b818b; font-size: 14px; line-height: 1.5; }
 .score-list { margin: 0; }
@@ -619,6 +642,18 @@ h1 { max-width: 760px; margin: 0; color: var(--ink-strong); font-family: 'Noto S
   .mirror-core h3 { font-size: 23px; }
   .mirror-reading { font-size: 16px; }
   .activity-preference-list small, .mirror-extension__list p { font-size: 14px; }
+  .life-daily-reading, .life-path-daily-reading { margin-top: 18px; padding: 14px 15px 15px; }
+  .life-daily-reading p, .life-path-daily-reading p { font-size: 16px; line-height: 1.7; }
+  .life-path-resonance-note { padding: 13px 14px; }
+  .riasec-top-three { margin-top: 18px; padding: 15px 15px 3px; }
+  .riasec-top-three__heading { gap: 10px; }
+  .riasec-top-three__heading strong { font-size: 17px; }
+  .riasec-top-three__heading > span { font-size: 19px; }
+  .riasec-top-three__list li { grid-template-columns: 24px 24px minmax(0, 1fr) 32px; gap: 8px; min-height: 62px; }
+  .riasec-top-three__code { font-size: 22px; }
+  .riasec-top-three__copy strong { font-size: 15px; }
+  .riasec-top-three__copy small { font-size: 13px; }
+  .riasec-top-three__score { font-size: 14px; }
   .report-panel .score-list div { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
   .report-panel .score-list dt { font-size: 14px; }
   .ai-report { padding: 17px 16px; border-radius: 15px; }

@@ -13,7 +13,7 @@ import { canParticipantAccessSubject, type SubjectKind, type SubjectRecord } fro
 const VALID_RESONANCE = new Set<LifePathResonance>(['high', 'partial', 'low']);
 const VALID_CODES = new Set<RiasecCode>(['R', 'I', 'A', 'S', 'E', 'C']);
 const VALID_USAGE = new Set<TalentUsage>([20, 40, 60, 80, 100]);
-const VALID_EXPLORATION = new Set<ExplorationInterest>(['很想', '可以了解看看', '目前還沒有']);
+const VALID_EXPLORATION = new Set<ExplorationInterest>(['很想', '可以了解看看', '目前還沒有', '未詢問']);
 const VALID_PRIORITIES = new Set<Priority>([
   '收入更多元', '工作更穩定', '更多時間自主', '更有成就感',
   '更能發揮自己的能力', '改善工作／人際環境', '新的學習與發展方向', '我現在還不確定',

@@ -9,6 +9,8 @@ import {
 import type { RuntimeServices } from './runtime';
 
 const LINE_REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
+const LINE_PUSH_ENDPOINT = 'https://api.line.me/v2/bot/message/push';
+const LINE_LOADING_ENDPOINT = 'https://api.line.me/v2/bot/chat/loading/start';
 const TRIGGER_WORDS = new Set(['我的原動力', '原動力']);
 const HELP_WORDS = new Set(['使用說明', '怎麼使用', '如何使用', '幫助']);
 const MAX_LINE_TEXT = 4800;
@@ -91,11 +93,33 @@ function textMessages(text: string): LineMessage[] {
   return splitLineText(text).map((chunk) => ({ type: 'text', text: chunk }));
 }
 
+async function showLineLoading(
+  lineUserId: string,
+  config: LineMessagingConfig,
+  fetchImpl: LineFetch,
+): Promise<void> {
+  try {
+    const response = await fetchImpl(LINE_LOADING_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.channelAccessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ chatId: lineUserId, loadingSeconds: 20 }),
+    });
+    if (!response.ok) console.warn('LINE loading animation failed', { status: response.status });
+  } catch {
+    // The loading indicator is best effort and must never block the actual reply.
+    console.warn('LINE loading animation request failed');
+  }
+}
+
 async function replyLine(
   replyToken: string,
   messages: LineMessage[],
   config: LineMessagingConfig,
   fetchImpl: LineFetch,
+  pushTo?: string,
 ): Promise<void> {
   const response = await fetchImpl(LINE_REPLY_ENDPOINT, {
     method: 'POST',
@@ -106,7 +130,37 @@ async function replyLine(
     body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
   });
   if (!response.ok) {
-    console.error('LINE reply API failed', { status: response.status });
+    const responseBody = await response.text().catch(() => '');
+    let apiMessage: string | undefined;
+    try {
+      const parsed = JSON.parse(responseBody) as { message?: unknown };
+      apiMessage = typeof parsed.message === 'string' ? parsed.message : undefined;
+    } catch {
+      // LINE may return a non-JSON error body; do not log it because it can be verbose.
+    }
+    console.error('LINE reply API failed', {
+      status: response.status,
+      message: apiMessage ?? 'unknown',
+    });
+
+    // A reply token can expire while the result is being read from Lark. Push
+    // the same card to the user as a fallback when LINE rejects that token.
+    if (pushTo && response.status === 400) {
+      const pushResponse = await fetchImpl(LINE_PUSH_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${config.channelAccessToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ to: pushTo, messages: messages.slice(0, 5) }),
+      });
+      if (pushResponse.ok) {
+        console.warn('LINE reply token rejected; push fallback sent');
+        return;
+      }
+      const pushBody = await pushResponse.text().catch(() => '');
+      console.error('LINE push fallback failed', { status: pushResponse.status, bodyLength: pushBody.length });
+    }
     throw new HttpError(502, 'line_reply_failed', 'LINE 回覆暫時無法送出。');
   }
 }
@@ -126,7 +180,10 @@ async function promptableAssessments(
   participant: Participant,
   services: RuntimeServices,
 ): Promise<PromptableAssessment[]> {
-  const subjects = await services.repositories.subjects.listForParticipant(participant.participantId);
+  const [subjects, legacy] = await Promise.all([
+    services.repositories.subjects.listForParticipant(participant.participantId),
+    services.repositories.assessments.findLatestForParticipant(participant.participantId),
+  ]);
   const ownedSubjects = subjects.filter((subject) =>
     subject.ownerParticipantId === participant.participantId ||
     (subject.subjectKind === 'self' && subject.createdByParticipantId === participant.participantId));
@@ -138,7 +195,6 @@ async function promptableAssessments(
   }));
   const results = nested.flat();
 
-  const legacy = await services.repositories.assessments.findLatestForParticipant(participant.participantId);
   if (legacy && !legacy.subjectId && !results.some((item) => item.assessment.assessmentId === legacy.assessmentId)) {
     results.push({ assessment: legacy, label: '我的結果' });
   }
@@ -289,7 +345,7 @@ function guideBlock(
           type: 'postback',
           label: track === 'self' ? '開始了解自己' : track === 'career' ? '開始探索方向' : '開始設計行動',
           data: `action=prompt&track=${track}&assessmentId=${encodeURIComponent(assessmentId)}`,
-          displayText: guide.title.replace(/^.\s*/, ''),
+          displayText: guide.title.replace(/^(?:🌱|💼|🧭)\s*/u, ''),
         },
       },
     ],
@@ -405,20 +461,20 @@ async function handleStart(
 
   const participant = await services.repositories.participants.findByLineUserId(lineUserId);
   if (!participant) {
-    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl);
+    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl, lineUserId);
     return;
   }
 
   const available = await promptableAssessments(participant, services);
   if (!available.length) {
-    await replyLine(replyToken, [noResultFlex(config.appBaseUrl)], config, fetchImpl);
+    await replyLine(replyToken, [noResultFlex(config.appBaseUrl)], config, fetchImpl, lineUserId);
     return;
   }
   if (available.length > 1) {
-    await replyLine(replyToken, [selectorFlex(available)], config, fetchImpl);
+    await replyLine(replyToken, [selectorFlex(available)], config, fetchImpl, lineUserId);
     return;
   }
-  await replyLine(replyToken, [summaryFlex(available[0].assessment)], config, fetchImpl);
+  await replyLine(replyToken, [summaryFlex(available[0].assessment)], config, fetchImpl, lineUserId);
 }
 
 async function handleResultText(
@@ -434,20 +490,20 @@ async function handleResultText(
 
   const participant = await services.repositories.participants.findByLineUserId(lineUserId);
   if (!participant) {
-    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl);
+    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl, lineUserId);
     return;
   }
 
   const matching = (await promptableAssessments(participant, services))
     .filter((item) => formatAssessmentDate(item.assessment.completedAt) === date);
   if (matching.length === 1) {
-    await replyLine(replyToken, [summaryFlex(matching[0].assessment)], config, fetchImpl);
+    await replyLine(replyToken, [summaryFlex(matching[0].assessment)], config, fetchImpl, lineUserId);
     return;
   }
 
   await replyLine(replyToken, matching.length > 1
     ? [selectorFlex(matching)]
-    : textMessages('找不到這個日期的結果，可能已經更新。請重新輸入「我的原動力」再選一次。'), config, fetchImpl);
+    : textMessages('找不到這個日期的結果，可能已經更新。請重新輸入「我的原動力」再選一次。'), config, fetchImpl, lineUserId);
 }
 
 async function handlePostback(
@@ -475,37 +531,37 @@ async function handlePostback(
 
   const participant = await services.repositories.participants.findByLineUserId(lineUserId);
   if (!participant) {
-    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl);
+    await replyLine(replyToken, [identityNotLinkedFlex(config.appBaseUrl)], config, fetchImpl, lineUserId);
     return;
   }
 
   const assessmentId = params.get('assessmentId');
   if (!assessmentId) {
-    await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
+    await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl, lineUserId);
     return;
   }
   const assessment = await ownedAssessment(participant, assessmentId, services);
   if (!assessment) {
-    await replyLine(replyToken, textMessages('這份結果目前不屬於你的帳號，或已無法存取。請重新輸入「我的原動力」。'), config, fetchImpl);
+    await replyLine(replyToken, textMessages('這份結果目前不屬於你的帳號，或已無法存取。請重新輸入「我的原動力」。'), config, fetchImpl, lineUserId);
     return;
   }
 
   if (SUMMARY_ACTIONS.has(action ?? '')) {
-    await replyLine(replyToken, [summaryFlex(assessment)], config, fetchImpl);
+    await replyLine(replyToken, [summaryFlex(assessment)], config, fetchImpl, lineUserId);
     return;
   }
 
   if (action === 'prompt') {
     const track = params.get('track');
     if (track !== 'self' && track !== 'career' && track !== 'action') {
-      await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
+      await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl, lineUserId);
       return;
     }
-    await replyLine(replyToken, await promptMessages(assessment, track, services), config, fetchImpl);
+    await replyLine(replyToken, await promptMessages(assessment, track, services), config, fetchImpl, lineUserId);
     return;
   }
 
-  await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl);
+  await replyLine(replyToken, textMessages(POSTBACK_RETRY_MESSAGE), config, fetchImpl, lineUserId);
 }
 
 export function createLinePostCourseExperienceWebhookHandler(
@@ -531,18 +587,23 @@ export function createLinePostCourseExperienceWebhookHandler(
       });
       try {
         if (event.type === 'follow' && event.replyToken) {
-          await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl);
+          await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl, event.source?.userId);
         } else if (event.type === 'message' && event.message?.type === 'text') {
           const text = event.message.text?.trim() ?? '';
+          const resultMatch = text.match(RESULT_TEXT_PATTERN);
+          const shouldShowLoading = TRIGGER_WORDS.has(text) || HELP_WORDS.has(text) || Boolean(resultMatch);
+          if (shouldShowLoading && event.source?.userId) {
+            await showLineLoading(event.source.userId, config, fetchImpl);
+          }
           if (TRIGGER_WORDS.has(text)) {
             await handleStart(event, services, config, fetchImpl);
           } else if (HELP_WORDS.has(text) && event.replyToken) {
-            await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl);
+            await replyLine(event.replyToken, [welcomeFlex(config.appBaseUrl)], config, fetchImpl, event.source?.userId);
           } else {
-            const resultMatch = text.match(RESULT_TEXT_PATTERN);
             if (resultMatch) await handleResultText(event, resultMatch[1], services, config, fetchImpl);
           }
         } else if (event.type === 'postback') {
+          if (event.source?.userId) await showLineLoading(event.source.userId, config, fetchImpl);
           await handlePostback(event, services, config, fetchImpl);
         }
       } catch (error) {
@@ -552,7 +613,7 @@ export function createLinePostCourseExperienceWebhookHandler(
         });
         if (event.replyToken) {
           try {
-            await replyLine(event.replyToken, textMessages('剛剛讀取結果時遇到短暫問題，請稍後再輸入「我的原動力」重試。'), config, fetchImpl);
+            await replyLine(event.replyToken, textMessages('剛剛讀取結果時遇到短暫問題，請稍後再輸入「我的原動力」重試。'), config, fetchImpl, event.source?.userId);
           } catch {
             // The original error and reply failure are already logged without private data.
           }

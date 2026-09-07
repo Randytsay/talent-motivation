@@ -11,8 +11,26 @@ export interface LarkFetch {
   (input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
+type LarkRecord = { recordId: string; fields: Record<string, unknown> };
+
+type LarkRecordFilter = {
+  conjunction: 'and' | 'or';
+  conditions: Array<{
+    field_name: string;
+    operator: 'is' | 'isNot' | 'contains' | 'doesNotContain' | 'isEmpty' | 'isNotEmpty';
+    value?: string[];
+  }>;
+};
+
+type LarkRecordSearchBody = {
+  filter?: LarkRecordFilter;
+  sort?: Array<{ field_name: string; desc?: boolean }>;
+};
+
 /** Server-only, small Lark Base client. Table schemas are supplied via env IDs. */
 export class LarkOpenApiClient {
+  private accessTokenCache?: { token: string; expiresAt: number };
+
   constructor(
     private readonly lark: NonNullable<RuntimeConfig['lark']>,
     private readonly fetcher: LarkFetch = fetch,
@@ -65,16 +83,66 @@ export class LarkOpenApiClient {
     return records;
   }
 
+  /**
+   * Query records in Lark Base before they are returned to the application.
+   * This is deliberately separate from listRecords because the latter remains
+   * useful for maintenance paths that genuinely need a complete table scan.
+   */
+  async searchRecords(
+    tableId: string,
+    body: LarkRecordSearchBody,
+    options: { maxRecords?: number; pageSize?: number } = {},
+  ): Promise<LarkRecord[]> {
+    const token = await this.tenantAccessToken();
+    const records: LarkRecord[] = [];
+    const pageSize = Math.min(Math.max(options.pageSize ?? options.maxRecords ?? 500, 1), 500);
+    let pageToken: string | undefined;
+
+    do {
+      const url = new URL(`https://open.feishu.cn/open-apis/bitable/v1/apps/${encodeURIComponent(this.lark.baseAppToken)}/tables/${encodeURIComponent(tableId)}/records/search`);
+      url.searchParams.set('page_size', String(pageSize));
+      if (pageToken) url.searchParams.set('page_token', pageToken);
+      const response = await this.fetcher(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const responseBody = (await response.json().catch(() => null)) as {
+        code?: number;
+        data?: { items?: Array<{ record_id?: string; fields?: Record<string, unknown> }>; has_more?: boolean; page_token?: string };
+      } | null;
+      if (!response.ok || responseBody?.code) throw new HttpError(502, 'lark_read_failed', '資料儲存服務暫時無法使用。');
+
+      records.push(...(responseBody?.data?.items ?? []).flatMap((item) =>
+        item.record_id && item.fields ? [{ recordId: item.record_id, fields: item.fields }] : [],
+      ));
+      if (options.maxRecords && records.length >= options.maxRecords) return records.slice(0, options.maxRecords);
+      pageToken = responseBody?.data?.has_more ? responseBody.data.page_token : undefined;
+      if (responseBody?.data?.has_more && !pageToken) throw new HttpError(502, 'lark_invalid_response', '資料儲存服務回傳格式無效。');
+    } while (pageToken);
+
+    return records;
+  }
+
   private async tenantAccessToken(): Promise<string> {
+    if (this.accessTokenCache && this.accessTokenCache.expiresAt > Date.now()) {
+      return this.accessTokenCache.token;
+    }
     const response = await this.fetcher('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ app_id: this.lark.appId, app_secret: this.lark.appSecret }),
     });
-    const body = (await response.json().catch(() => null)) as { code?: number; tenant_access_token?: string } | null;
+    const body = (await response.json().catch(() => null)) as { code?: number; tenant_access_token?: string; expire?: number } | null;
     if (!response.ok || body?.code || !body?.tenant_access_token) {
       throw new HttpError(502, 'lark_auth_failed', '資料儲存服務驗證失敗。');
     }
+    const expiresInSeconds = Number(body.expire);
+    const cacheWindow = Number.isFinite(expiresInSeconds) ? Math.max(60, expiresInSeconds - 60) : 300;
+    this.accessTokenCache = {
+      token: body.tenant_access_token,
+      expiresAt: Date.now() + cacheWindow * 1000,
+    };
     return body.tenant_access_token;
   }
 }
@@ -110,16 +178,15 @@ export class LarkRepositories implements Repositories {
   constructor(private readonly client: LarkOpenApiClient, private readonly tables: Tables) {
     this.participants = {
       findByLineUserId: async (lineUserId) => {
-        const row = (await this.client.listRecords(this.tables.participantsTableId)).find((item) => item.fields.line_user_id === lineUserId);
+        const row = (await this.client.searchRecords(this.tables.participantsTableId, exactFilter('line_user_id', lineUserId), { maxRecords: 1 }))[0];
         return row ? participantFrom(row.fields) : null;
       },
       findByParticipantId: async (participantId) => {
-        const row = (await this.client.listRecords(this.tables.participantsTableId)).find((item) => item.fields.participant_id === participantId);
+        const row = (await this.client.searchRecords(this.tables.participantsTableId, exactFilter('participant_id', participantId), { maxRecords: 1 }))[0];
         return row ? participantFrom(row.fields) : null;
       },
       upsertIdentity: async (identity) => {
-        const rows = await this.client.listRecords(this.tables.participantsTableId);
-        const existing = rows.find((item) => item.fields.line_user_id === identity.lineUserId);
+        const existing = (await this.client.searchRecords(this.tables.participantsTableId, exactFilter('line_user_id', identity.lineUserId), { maxRecords: 1 }))[0];
         const timestamp = new Date().toISOString();
         if (existing) {
           await this.client.updateRecord(this.tables.participantsTableId, existing.recordId, {
@@ -134,7 +201,7 @@ export class LarkRepositories implements Repositories {
         return participant;
       },
       setLatestAssessment: async (participantId, assessmentId) => {
-        const row = (await this.client.listRecords(this.tables.participantsTableId)).find((item) => item.fields.participant_id === participantId);
+        const row = (await this.client.searchRecords(this.tables.participantsTableId, exactFilter('participant_id', participantId), { maxRecords: 1 }))[0];
         if (!row) throw new HttpError(404, 'participant_not_found', '找不到參與者資料。');
         await this.client.updateRecord(this.tables.participantsTableId, row.recordId, { latest_assessment_id: assessmentId, last_seen_at: new Date().toISOString() });
       },
@@ -145,19 +212,21 @@ export class LarkRepositories implements Repositories {
         return assessment;
       },
       findById: async (assessmentId) => {
-        const row = (await this.client.listRecords(this.tables.assessmentsTableId)).find((item) => item.fields.assessment_id === assessmentId);
+        const row = (await this.client.searchRecords(this.tables.assessmentsTableId, exactFilter('assessment_id', assessmentId), { maxRecords: 1 }))[0];
         return row ? assessmentFrom(row.fields) : null;
       },
       findLatestForParticipant: async (participantId) => {
-        const rows = (await this.client.listRecords(this.tables.assessmentsTableId))
-          .filter((item) => item.fields.participant_id === participantId)
-          .sort((left, right) => date(right.fields.completed_at).localeCompare(date(left.fields.completed_at)));
+        const rows = await this.client.searchRecords(this.tables.assessmentsTableId, {
+          filter: exactFilter('participant_id', participantId).filter,
+          sort: [{ field_name: 'completed_at', desc: true }],
+        }, { maxRecords: 1 });
         return rows[0] ? assessmentFrom(rows[0].fields) : null;
       },
       listForSubject: async (subjectId) => {
-        const rows = (await this.client.listRecords(this.tables.assessmentsTableId))
-          .filter((item) => item.fields.subject_id === subjectId)
-          .sort((left, right) => date(right.fields.completed_at).localeCompare(date(left.fields.completed_at)));
+        const rows = await this.client.searchRecords(this.tables.assessmentsTableId, {
+          filter: exactFilter('subject_id', subjectId).filter,
+          sort: [{ field_name: 'completed_at', desc: true }],
+        });
         return rows.map((row) => assessmentFrom(row.fields));
       },
     };
@@ -174,7 +243,7 @@ export class LarkRepositories implements Repositories {
         return report;
       },
       findByAssessmentId: async (assessmentId) => {
-        const row = (await this.client.listRecords(this.tables.aiReportsTableId)).find((item) => item.fields.assessment_id === assessmentId);
+        const row = (await this.client.searchRecords(this.tables.aiReportsTableId, exactFilter('assessment_id', assessmentId), { maxRecords: 1 }))[0];
         if (!row) return null;
         const serialized = asString(row.fields.report_json);
         if (!serialized) return null;
@@ -190,11 +259,11 @@ export class LarkRepositories implements Repositories {
     };
     this.events = {
       findById: async (eventId) => {
-        const row = (await this.client.listRecords(this.tables.eventsTableId)).find((item) => item.fields.event_id === eventId);
+        const row = (await this.client.searchRecords(this.tables.eventsTableId, exactFilter('event_id', eventId), { maxRecords: 1 }))[0];
         return row ? eventFrom(row.fields) : null;
       },
       setCurrentPresenterAssessment: async (eventId, assessmentId) => {
-        const row = (await this.client.listRecords(this.tables.eventsTableId)).find((item) => item.fields.event_id === eventId);
+        const row = (await this.client.searchRecords(this.tables.eventsTableId, exactFilter('event_id', eventId), { maxRecords: 1 }))[0];
         if (!row) throw new HttpError(404, 'event_not_found', '找不到活動資料。');
         await this.client.updateRecord(this.tables.eventsTableId, row.recordId, { current_presenter_assessment: assessmentId });
       },
@@ -207,22 +276,44 @@ export class LarkRepositories implements Repositories {
         return subject;
       },
       findById: async (subjectId) => {
-        const rows = await this.subjectRows();
-        const row = rows.find((item) => item.fields.subject_id === subjectId);
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) return null;
+        const row = (await this.client.searchRecords(tableId, exactFilter('subject_id', subjectId), { maxRecords: 1 }))[0];
         return row ? subjectFrom(row.fields) : null;
       },
       findByClaimTokenHash: async (tokenHash) => {
-        const rows = await this.subjectRows();
-        const row = rows.find((item) => item.fields.claim_token_hash === tokenHash);
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) return null;
+        const row = (await this.client.searchRecords(tableId, exactFilter('claim_token_hash', tokenHash), { maxRecords: 1 }))[0];
         return row ? subjectFrom(row.fields) : null;
       },
       findSelfForParticipant: async (participantId) => {
-        const rows = await this.subjectRows();
-        const row = rows.find((item) => item.fields.created_by_participant_id === participantId && item.fields.subject_kind === 'self' && item.fields.archived !== true);
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) return null;
+        const rows = await this.client.searchRecords(tableId, {
+          filter: {
+            conjunction: 'and',
+            conditions: [
+              exactCondition('created_by_participant_id', participantId),
+              exactCondition('subject_kind', 'self'),
+            ],
+          },
+        });
+        const row = rows.find((item) => item.fields.archived !== true);
         return row ? subjectFrom(row.fields) : null;
       },
       listForParticipant: async (participantId) => {
-        const rows = await this.subjectRows();
+        const tableId = this.tables.subjectsTableId;
+        if (!tableId) return [];
+        const rows = await this.client.searchRecords(tableId, {
+          filter: {
+            conjunction: 'or',
+            conditions: [
+              exactCondition('owner_participant_id', participantId),
+              exactCondition('created_by_participant_id', participantId),
+            ],
+          },
+        });
         return rows.filter((item) => {
           const fields = item.fields;
           return fields.archived !== true && (fields.owner_participant_id === participantId ||
@@ -232,8 +323,7 @@ export class LarkRepositories implements Repositories {
       update: async (subjectId, patch) => {
         const tableId = this.tables.subjectsTableId;
         if (!tableId) throw new HttpError(503, 'configuration_required', 'Subjects 資料表尚未完成設定。');
-        const rows = await this.subjectRows();
-        const row = rows.find((item) => item.fields.subject_id === subjectId);
+        const row = (await this.client.searchRecords(tableId, exactFilter('subject_id', subjectId), { maxRecords: 1 }))[0];
         if (!row) throw new HttpError(404, 'subject_not_found', '找不到這個探索對象。');
         const updated = { ...subjectFrom(row.fields), ...patch, subjectId, updatedAt: patch.updatedAt ?? new Date().toISOString() };
         await this.client.updateRecord(tableId, row.recordId, subjectFields(updated));
@@ -245,10 +335,14 @@ export class LarkRepositories implements Repositories {
     };
   }
 
-  private async subjectRows(): Promise<Array<{ recordId: string; fields: Record<string, unknown> }>> {
-    if (!this.tables.subjectsTableId) return [];
-    return this.client.listRecords(this.tables.subjectsTableId);
-  }
+}
+
+function exactCondition(fieldName: string, value: string): LarkRecordFilter['conditions'][number] {
+  return { field_name: fieldName, operator: 'is', value: [value] };
+}
+
+function exactFilter(fieldName: string, value: string): { filter: LarkRecordFilter } {
+  return { filter: { conjunction: 'and', conditions: [exactCondition(fieldName, value)] } };
 }
 
 function participantFields(participant: Participant): Record<string, unknown> {

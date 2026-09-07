@@ -54,7 +54,8 @@ function signedRequest(body: string, secret = 'messaging-secret'): Request {
 
 function testHandler(repositories: InMemoryRepositories, requests: unknown[]) {
   const runtime = createRuntime(loadRuntimeConfig({ APP_RUNTIME_MODE: 'mock' }), repositories);
-  const fetchImpl: typeof fetch = async (_input, init) => {
+  const fetchImpl: typeof fetch = async (input, init) => {
+    if (String(input).endsWith('/loading/start')) return new Response('{}', { status: 202 });
     requests.push(JSON.parse(String(init?.body)));
     return new Response('{}', { status: 200 });
   };
@@ -87,6 +88,38 @@ describe('LINE post-course experience UX', () => {
     expect(JSON.stringify(payload)).toContain('還沒測驗，先開始');
   });
 
+  it('pushes the same response when LINE rejects an expired reply token', async () => {
+    const repositories = new InMemoryRepositories();
+    const calls: string[] = [];
+    const runtime = createRuntime(loadRuntimeConfig({ APP_RUNTIME_MODE: 'mock' }), repositories);
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/loading/start')) return new Response('{}', { status: 202 });
+      if (url.endsWith('/reply')) return new Response(JSON.stringify({ message: 'Invalid reply token' }), { status: 400 });
+      return new Response('{}', { status: 200 });
+    };
+    const handler = createLinePostCourseExperienceWebhookHandler(runtime, {
+      channelSecret: 'messaging-secret',
+      channelAccessToken: 'token',
+      appBaseUrl: 'https://talent.example.com',
+    }, fetchImpl);
+    const body = JSON.stringify({
+      events: [{
+        type: 'message', replyToken: 'expired-token', source: { userId: 'U-new' },
+        message: { type: 'text', text: '原動力' },
+      }],
+    });
+
+    const response = await handler(signedRequest(body));
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([
+      'https://api.line.me/v2/bot/chat/loading/start',
+      'https://api.line.me/v2/bot/message/reply',
+      'https://api.line.me/v2/bot/message/push',
+    ]);
+  });
+
   it('shows assessment date and explains all three ways to use the result', async () => {
     const repositories = new InMemoryRepositories(() => '2026-09-05T12:00:00.000Z');
     const participant = await repositories.participants.upsertIdentity({
@@ -110,6 +143,7 @@ describe('LINE post-course experience UX', () => {
     expect(rendered).toContain('看懂自己的能量與反覆線索');
     expect(rendered).toContain('探索工作、轉職、副業與第二曲線');
     expect(rendered).toContain('把想法變成可以驗證的小行動');
+    expect(rendered).toContain('displayText":"更了解自己"');
   });
 
   it('keeps multiple owned assessment dates selectable instead of hiding older results', async () => {

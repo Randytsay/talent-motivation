@@ -4,7 +4,7 @@ import { assessmentForClient, saveAssessment, validateAssessment } from './asses
 import type { AssessmentRecord, Identity } from './contracts';
 import { loadRuntimeConfig } from './env';
 import { createOAuthState, createSessionCookie, currentIdentity, LineLiffIdentityVerifier, readSession, verifyOAuthState } from './identity';
-import { LarkOpenApiClient } from './lark';
+import { LarkOpenApiClient, LarkRepositories } from './lark';
 import { currentPresenterPayload } from './presenter';
 import { InMemoryRepositories } from './repositories';
 import { createRouteHandlers } from './routes';
@@ -123,6 +123,54 @@ describe('P1 server runtime', () => {
     await expect(client.createRecord('table', { participant_id: 'p1' })).resolves.toEqual({ recordId: 'rec_1' });
     expect(requests).toHaveLength(2);
     expect(requests[1]).toContain('/tables/table/records');
+  });
+
+  it('uses the Lark record search endpoint for filtered reads', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new LarkOpenApiClient({
+      appId: 'app', appSecret: 'secret', baseAppToken: 'base', participantsTableId: 'p', assessmentsTableId: 'a', aiReportsTableId: 'r', eventsTableId: 'e',
+    }, async (input, init) => {
+      requests.push({ url: String(input), init });
+      return requests.length === 1
+        ? new Response(JSON.stringify({ code: 0, tenant_access_token: 'tenant', expire: 3600 }))
+        : new Response(JSON.stringify({ code: 0, data: {
+          items: [{ record_id: 'rec_1', fields: { participant_id: 'p1' } }], has_more: false,
+        } }));
+    });
+
+    await expect(client.searchRecords('participants', {
+      filter: { conjunction: 'and', conditions: [{ field_name: 'line_user_id', operator: 'is', value: ['U123'] }] },
+    }, { maxRecords: 1 })).resolves.toEqual([{ recordId: 'rec_1', fields: { participant_id: 'p1' } }]);
+    expect(requests[1].url).toContain('/tables/participants/records/search');
+    expect(new URL(requests[1].url).searchParams.get('page_size')).toBe('1');
+    expect(requests[1].init?.method).toBe('POST');
+    expect(JSON.parse(String(requests[1].init?.body))).toMatchObject({
+      filter: { conditions: [{ field_name: 'line_user_id', operator: 'is', value: ['U123'] }] },
+    });
+  });
+
+  it('keeps repository identity lookups server-side filtered', async () => {
+    const calls: Array<{ tableId: string; body: unknown; options: unknown }> = [];
+    const client = {
+      searchRecords: async (tableId: string, body: unknown, options: unknown) => {
+        calls.push({ tableId, body, options });
+        return [{ recordId: 'rec_1', fields: {
+          participant_id: 'participant-1', line_user_id: 'U123', display_name: 'Test User',
+          created_at: '2026-01-01T00:00:00.000Z', last_seen_at: '2026-01-01T00:00:00.000Z',
+        } }];
+      },
+    } as unknown as LarkOpenApiClient;
+    const repositories = new LarkRepositories(client, {
+      appId: 'app', appSecret: 'secret', baseAppToken: 'base', participantsTableId: 'participants',
+      assessmentsTableId: 'assessments', aiReportsTableId: 'reports', eventsTableId: 'events', subjectsTableId: 'subjects',
+    });
+
+    await expect(repositories.participants.findByLineUserId('U123')).resolves.toMatchObject({ participantId: 'participant-1' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ tableId: 'participants', options: { maxRecords: 1 } });
+    expect(calls[0].body).toEqual({ filter: {
+      conjunction: 'and', conditions: [{ field_name: 'line_user_id', operator: 'is', value: ['U123'] }],
+    } });
   });
 
   it('returns a safe upstream error when Lark rejects a write', async () => {

@@ -1,5 +1,5 @@
 import { vercelWebHandler } from '../../src/server/http';
-import { createLinePostCourseExperienceWebhookHandler } from '../../src/server/linePostCourseExperience';
+import { createClassroomLinePostCourseWebhookHandler } from '../../src/server/lineClassroomAdapter';
 import { lineMessagingConfigFromEnv } from '../../src/server/linePostCourse';
 import { createRuntime } from '../../src/server/runtime';
 
@@ -11,5 +11,5 @@ if (!messagingConfig) {
 }
 
 export default vercelWebHandler(
-  createLinePostCourseExperienceWebhookHandler(runtime, messagingConfig),
+  createClassroomLinePostCourseWebhookHandler(runtime, messagingConfig),
 );

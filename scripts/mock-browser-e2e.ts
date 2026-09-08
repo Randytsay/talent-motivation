@@ -43,9 +43,9 @@ async function completeClassroomFlow(page: Page) {
   await page.getByRole('button', { name: '老師說可以後，進入第二階段' }).click();
 
   await page.getByRole('heading', { name: '不是看你「是什麼人」，而是看你喜歡怎麼做事情' }).waitFor();
-  await page.getByText('R 實作型｜做', { exact: true }).waitFor();
-  await page.getByText('I 研究型｜想', { exact: true }).waitFor();
-  await page.getByText('S 助人型｜幫', { exact: true }).waitFor();
+  await page.getByText('實作型｜做', { exact: true }).waitFor();
+  await page.getByText('研究型｜想', { exact: true }).waitFor();
+  await page.getByText('助人型｜幫', { exact: true }).waitFor();
   await page.getByRole('button', { name: '開始 18 題' }).click();
   for (let index = 0; index < 18; index += 1) {
     await page.getByRole('button', { name: '很像我' }).click();

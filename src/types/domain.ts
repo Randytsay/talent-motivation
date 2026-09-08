@@ -52,7 +52,7 @@ export type Priority =
   | '改善工作／人際環境'
   | '新的學習與發展方向'
   | '我現在還不確定';
-export type ExplorationInterest = '很想' | '可以了解看看' | '目前還沒有';
+export type ExplorationInterest = '很想' | '可以了解看看' | '目前還沒有' | '未詢問';
 
 export type AssessmentStep =
   | 'landing'
